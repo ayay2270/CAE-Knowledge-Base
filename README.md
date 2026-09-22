@@ -44,6 +44,21 @@ npm run build
 npm run preview
 ```
 
+正式建置的 `base` 為 `/CAE-Knowledge-Base/`（GitHub Pages 專案路徑）；本機 `npm run dev` 仍使用 `/`。
+
+## GitHub Pages
+
+推送到 `main` 會透過 [`.github/workflows/deploy-pages.yml`](.github/workflows/deploy-pages.yml) 自動建置並部署。
+
+正式網址：https://ayay2270.github.io/CAE-Knowledge-Base/
+
+若要在 Pages 上使用 Supabase（非示範模式），於 GitHub repo **Settings → Secrets and variables → Actions** 新增：
+
+- `VITE_SUPABASE_URL`
+- `VITE_SUPABASE_ANON_KEY`
+
+未設定時網站仍可開啟，並以**示範模式**運作。
+
 ## 授權
 
 內部工程工具；依貴部門政策使用。
