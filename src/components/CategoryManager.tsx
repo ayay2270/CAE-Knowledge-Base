@@ -96,7 +96,7 @@ export function CategoryManager({
             {categories.map((cat, index) => (
               <li
                 key={cat.id}
-                className="flex items-center gap-2 rounded-lg border border-slate-150 border-slate-200 px-2.5 py-2"
+                className="flex items-center gap-2 rounded-lg border border-slate-200 px-2.5 py-2"
               >
                 <div className="flex flex-col">
                   <button

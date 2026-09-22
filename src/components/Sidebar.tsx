@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react'
 import {
   BookOpen,
   Cloud,
@@ -31,7 +32,7 @@ export function Sidebar({
   const navBtn = (
     active: boolean,
     onClick: () => void,
-    icon: React.ReactNode,
+    icon: ReactNode,
     label: string,
     count?: number,
   ) => (

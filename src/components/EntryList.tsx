@@ -103,7 +103,7 @@ export function EntryList({ kb, onSelect, mobileShowDetail }: Props) {
                   className={`w-full rounded-xl border px-3.5 py-3 text-left transition ${
                     active
                       ? 'border-teal-200 bg-teal-50/60 shadow-sm ring-1 ring-teal-500/20 border-l-4 border-l-teal-600'
-                      : 'border-slate-150 border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50'
+                      : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50'
                   }`}
                 >
                   <div className="flex items-start justify-between gap-2">

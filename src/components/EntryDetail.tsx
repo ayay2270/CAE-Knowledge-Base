@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import {
   AlertTriangle,
   Search,
@@ -255,18 +255,4 @@ function Section({
       </p>
     </div>
   )
-}
-
-/** Prefetch keyboard shortcut focus for search — kept for App wiring */
-export function useSearchHotkey(inputRef: React.RefObject<HTMLInputElement | null>) {
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
-        e.preventDefault()
-        inputRef.current?.focus()
-      }
-    }
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  }, [inputRef])
 }
