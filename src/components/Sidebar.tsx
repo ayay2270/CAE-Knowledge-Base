@@ -109,6 +109,8 @@ export function Sidebar({
           )}
           <button
             type="button"
+            data-testid="add-entry"
+            aria-label="新增條目"
             onClick={() => {
               onAddEntry()
               onClose()
@@ -128,6 +130,8 @@ export function Sidebar({
             <button
               type="button"
               title="管理分類"
+              data-testid="manage-categories"
+              aria-label="管理分類"
               onClick={() => {
                 onManageCategories()
                 onClose()
@@ -158,6 +162,8 @@ export function Sidebar({
 
           <button
             type="button"
+            data-testid="manage-categories-link"
+            aria-label="管理分類"
             onClick={() => {
               onManageCategories()
               onClose()
