@@ -1,28 +1,49 @@
-# 重心計算機（Center of Gravity Calculator）
+# CAE Knowledge Base
 
-互動式重心與傾斜模擬工具：調整棧板／機櫃尺寸與重心位置，即時計算理論翻覆臨界角，並對照 22° 目標餘量。
+部門共用的 CAE 工程知識庫（HyperMesh / LS-DYNA 等）。三欄式介面：分類導覽、條目列表、詳情與圖片。資料存於 **Supabase**（Postgres + Storage），無登入。
 
-## 使用方式
+## 本機開發
 
-直接開啟本 repository 的 GitHub Pages：
+```bash
+cp .env.example .env
+# 填入 VITE_SUPABASE_URL、VITE_SUPABASE_ANON_KEY
 
-https://ayay2270.github.io/Center-of-Gravity-Calculator/
+npm install
+npm run dev
+```
 
-或於本機用瀏覽器開啟根目錄的 `index.html`（純靜態頁面，無需安裝依賴）。
+預設開發伺服器：`http://127.0.0.1:43127`
 
-## 功能概要
+未設定 `.env` 時會以**示範模式**啟動（記憶體種子資料，重整後重置），方便預覽 UI。正式使用請接上 Supabase。
 
-- 拖曳橘點或手動輸入，調整重心高度與左右偏移
-- 傾斜示意、臨界角、相對 22° 的餘量
-- 以重量估算整組重心（選用）
-- 儲存／比較方案，並可匯出／匯入 JSON 設定
+## Supabase 設定（必要，一次性）
 
-## 檔案
+1. 建立 [Supabase](https://supabase.com) 專案。
+2. **Project Settings → API**：複製 Project URL 與 `anon` `public` key 到 `.env`。
+3. **SQL Editor**：貼上並執行 [`supabase/migrations/20260322000000_initial.sql`](supabase/migrations/20260322000000_initial.sql)（建立 tables、RLS、Storage bucket、種子資料）。
+4. 重啟 `npm run dev`。側欄應顯示「已同步至共用雲端」。
 
-| 檔案 | 說明 |
-|------|------|
-| `index.html` | 完整應用（UI、樣式與計算邏輯） |
+勿使用或提交 `service_role` key。
 
-## 授權與注意
+## 功能
 
-模型假設機櫃與棧板固定成一體、以棧板外緣支撐、緩慢傾斜且無滑移或變形。此處判定的是單方向的「22° 理論不翻覆目標」，不代表完整 ISTA 3B 測試通過。
+- 動態分類 CRUD／排序（預設 HyperMesh、LS-DYNA；All 為虛擬篩選）
+- 知識條目完整 CRUD、搜尋、排序、我的最愛、最近查看
+- 軟刪除／還原／永久刪除（並清除 Storage 圖片）
+- 圖片：多檔上傳、拖放、縮圖、排序、lightbox、單張／全部下載（jpg/jpeg/png/webp）
+- 響應式：桌面三欄；平板可收合側欄；手機列表／詳情切換
+
+## 技術堆疊
+
+React 19 · Vite · TypeScript · Tailwind CSS v4 · Supabase JS
+
+## 建置
+
+```bash
+npm run build
+npm run preview
+```
+
+## 授權
+
+內部工程工具；依貴部門政策使用。
