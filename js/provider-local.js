@@ -30,7 +30,7 @@ const LocalProvider = (() => {
         entries = entries.map(e => e.id !== patch.entryId ? e
           : { ...e, ...Object.fromEntries(Object.entries(patch.append).map(([k, v]) => [k, (e[k] || '') + v])) });
       }
-      return { categories: db.categories || [], entries };
+      return { categories: db.categories || [], entries: entries.map(KBContent.normalize) };
     },
     async prepareImages() { /* local files need no preparation */ },
     imageUrl(path) { return path; }

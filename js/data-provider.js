@@ -6,7 +6,7 @@
      KBData.imageUrl(path)         -> string          URL usable in <img src>
 
    Two implementations exist:
-     provider-supabase.js   read-only Supabase connection (used when js/config.js holds a project URL + publishable key)
+     provider-supabase.js   Supabase connection (public reads, author writes) (used when js/config.js holds a project URL + publishable key)
      provider-local.js      local static JSON (default when nothing is configured)
 
    Add ?source=local to the page URL to force the local data even when Supabase is configured.

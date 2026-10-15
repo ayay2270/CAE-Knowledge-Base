@@ -2,9 +2,8 @@
 
 **Live site: https://ayay2270.github.io/CAE-Knowledge-Base-V4/** (GitHub Pages, served from `main`, root folder)
 
-A viewer for CAE troubleshooting articles (HyperMesh / OptiStruct / LS-DYNA style problems).
-Each article follows **problem → cause → solution**, records approaches that did not work, notes and
-references, and carries engineering figures with captions linked to the section or step they illustrate.
+A CAE knowledge base for **technical knowledge** and **troubleshooting** articles. Each content type has its own
+authoring and reading sections, with engineering figures linked to sections or numbered steps.
 
 ## Interface
 
@@ -160,3 +159,35 @@ recoloured.
 The landing-page hero background (`assets/brand/hero-bg.jpg`) is a cropped, compressed version of
 "Forested mountain valley" by Stijn te Strake (Unsplash), published under CC0 1.0 (public domain) and
 available on Wikimedia Commons: <https://commons.wikimedia.org/wiki/File:Forested_mountain_valley_(Unsplash).jpg>.
+
+## Phase 5 — content types (local review)
+
+The new form requires an explicit choice of 技術知識 (`knowledge`) or 問題排除 (`troubleshooting`).
+Missing / NULL `content_type` is interpreted as troubleshooting; existing JSON and database rows need no backfill.
+
+- Knowledge fields: `summary`, `technical_explanation`, optional `procedure`, `key_rules`, `notes`.
+- Troubleshooting fields: `symptom`, `root_cause`, `solution`, optional `verification`, `failed_attempts`, `notes`.
+- Shared: title, category, tags, reference_source, images and existing author / timestamp metadata.
+- Switching type preserves text (inactive fields remain dormant in storage and are not rendered). New images
+  use the active type's sections; invalid placements fall back to its first section with a notification.
+- Legacy image sections `note`, `fails`, `ref` remain supported; `solution` + `step: "v"` maps to verification.
+- Preview and reading share section / step rendering. Empty optional sections are omitted unless they contain images.
+- Search covers both content types' body fields. Local prototype articles support add, reload and edit.
+
+`supabase/phase5-content-types.sql` is an **additive migration file for separate review**. It adds six columns and
+extends Phase 4's column-level UPDATE grants without changing author-only RLS. It has not been executed as part
+of this local change. A database needs this migration before saving the new payload; legacy reading also works
+before migration through a read-only column fallback. No deployment or configuration changes are included.
+
+Validation:
+
+```bash
+npm test
+npm run test:browser
+```
+
+The browser suite requires Playwright and an installed Chrome (`BROWSER_CHANNEL` can select another channel).
+If Playwright is provided by a separate runtime, set `PLAYWRIGHT_MODULE` to its absolute package directory.
+`REVIEW_DIR` selects the output directory for screenshots and the 17-case JSON report (default `.local-review/`).
+The suite starts a loopback-only server, uses local data, and intercepts **all Supabase requests** in the database
+scenarios. It never sends database writes to any Supabase project. Do not commit generated review output.

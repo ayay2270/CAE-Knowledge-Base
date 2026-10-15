@@ -2,11 +2,13 @@
   "name": "cae-knowledge-base-v4",
   "version": "4.0.0",
   "private": true,
-  "description": "CAE Knowledge Base V4 — knowledge-base site (static, local data or Supabase).",
+  "description": "CAE Knowledge Base V4 \u2014 knowledge-base site (static, local data or Supabase).",
   "type": "module",
   "scripts": {
     "start": "node scripts/serve.mjs",
-    "seed:build": "node scripts/build-seed.mjs"
+    "seed:build": "node scripts/build-seed.mjs",
+    "test": "node --test tests/content-types.test.mjs",
+    "test:browser": "node tests/browser-content-types.mjs"
   },
   "engines": {
     "node": ">=18"

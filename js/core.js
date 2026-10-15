@@ -70,7 +70,7 @@ function terms(q) {
   return [...new Set(parts)].slice(0, 40);
 }
 function hay(e) {
-  return [e.title, (e.tags || []).join(' '), e.symptom, e.root_cause, e.solution, (e.failed_attempts || []).join(' '), e.notes, e.reference_source || ''].join('\n').toLowerCase();
+  return [e.title, (e.tags || []).join(' '), e.summary, e.technical_explanation, e.procedure, e.key_rules, e.symptom, e.root_cause, e.solution, e.verification, (e.failed_attempts || []).join(' '), e.notes, e.reference_source || ''].join('\n').toLowerCase();
 }
 function visible() {
   let arr = S.entries.filter(e => inFilter(e));
@@ -187,7 +187,7 @@ const KBH = {
   },
   snippet(e, n = 110) {
     const ts = terms(S.q);
-    const fields = [e.symptom, e.root_cause, e.solution, (e.failed_attempts || []).join(' '), e.notes, e.reference_source, (e.tags || []).join(' ')].map(KBH.plain).filter(Boolean);
+    const fields = [...KBContent.fields(e).map(f => e[f.id]), KBContent.type(e) === 'troubleshooting' ? (e.failed_attempts || []).join(' ') : '', e.reference_source, (e.tags || []).join(' ')].map(KBH.plain).filter(Boolean);
     let src = fields[0] || '';
     if (ts.length) {
       const hit = fields.find(f => ts.some(t => f.toLowerCase().includes(t)));
@@ -207,13 +207,11 @@ const KBH = {
     const ref = (e.reference_source || '').trim();
     return {
       c, g, fails, note, ref,
-      sections: [
-        { id: 'symptom', n: '1', label: KB_LABELS.symptom, color: 'var(--orange)', ink: '#C2410C', html: md(e.symptom) || pending, empty: !md(e.symptom) },
-        { id: 'root_cause', n: '2', label: KB_LABELS.root_cause, color: 'var(--blue)', ink: '#1D4ED8', html: md(e.root_cause) || pending, empty: !md(e.root_cause) },
-        { id: 'solution', n: '3', label: KB_LABELS.solution, color: 'var(--green)', ink: '#047857', html: md(e.solution) || pending, empty: !md(e.solution) }
-      ],
+      sections: KBContent.fields(e).map((f, i) => ({
+        ...f, n: String(i + 1), html: md(e[f.id]) || (f.required ? pending : ''), empty: !md(e[f.id])
+      })),
       tags: (e.tags || []).map(t => `<button class="tag" data-act="dtag" data-t="${esc(t)}">#${esc(t)}</button>`).join(''),
-      actions: `<button class="btn" data-act="copylink" title="複製連結" aria-label="複製連結"><i class="ti ti-link"></i></button>` + (KBData.canDelete && KBData.canDelete(e.id) ? `<button class="btn" data-act="kEdit" data-id="${esc(e.id)}" title="編輯這篇知識" aria-label="編輯這篇知識"><i class="ti ti-pencil"></i></button><button class="btn danger" data-act="kDelete" data-id="${esc(e.id)}" title="刪除這篇知識" aria-label="刪除這篇知識"><i class="ti ti-trash"></i></button>` : ''),
+      actions: `<button class="btn" data-act="copylink" title="複製連結" aria-label="複製連結"><i class="ti ti-link"></i></button>` + (e._prototype || (KBData.canDelete && KBData.canDelete(e.id)) ? `<button class="btn" data-act="kEdit" data-id="${esc(e.id)}" title="編輯這篇知識" aria-label="編輯這篇知識"><i class="ti ti-pencil"></i></button>` : '') + (KBData.canDelete && KBData.canDelete(e.id) ? `<button class="btn danger" data-act="kDelete" data-id="${esc(e.id)}" title="刪除這篇知識" aria-label="刪除這篇知識"><i class="ti ti-trash"></i></button>` : ''),
       failsHtml: fails.length ? `<ul>${fails.map(f => `<li>${inline(esc(f))}</li>`).join('')}</ul>` : '',
       noteHtml: note ? md(note) : '',
       refHtml: ref ? md(ref) : ''

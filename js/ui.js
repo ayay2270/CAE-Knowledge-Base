@@ -100,7 +100,7 @@ function kRow(e, hl, noCat) {
   const p = catInfo(e.category);
   return `<button class="k-row g-${p.group}" data-act="cOpen" data-id="${esc(e.id)}">
     <span class="k-ico">${KBH.icon(e.category)}</span>
-    <span class="k-rb"><span class="k-rc">${esc(p.label)}${e._prototype ? '<b class="k-proto">本機原型</b>' : ''}</span><span class="k-rt">${hl ? KBH.hl(e.title) : esc(e.title)}</span><span class="k-rs">${hl ? KBH.hl(KBH.snippet(e, 170)) : esc(kPlainSnippet(e, 170))}</span></span>
+    <span class="k-rb"><span class="k-row-labels"><span class="k-rc">${esc(p.label)}</span>${KBContent.badge(e)}${e._prototype ? '<b class="k-proto">本機原型</b>' : ''}</span><span class="k-rt">${hl ? KBH.hl(e.title) : esc(e.title)}</span><span class="k-rs">${hl ? KBH.hl(KBH.snippet(e, 170)) : esc(kPlainSnippet(e, 170))}</span></span>
     <span class="k-rm"><time datetime="${esc(e.updated_at)}">${fmtDate(e.updated_at)}</time></span>
     <i class="ti ti-chevron-right k-chev" aria-hidden="true"></i></button>`;
 }

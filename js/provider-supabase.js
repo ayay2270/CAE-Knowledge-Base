@@ -23,6 +23,7 @@ function createSupabaseProvider(cfg) {
   const BLOCKED_PROJECT_REFS = ['irspvzxkxxlnibmtmpox', 'uvxxnixkstxaqxhyfmcm'];   // V2 production, V3 development
   const BUCKET = 'kb-images', SIGN_SECONDS = 3600, PAGE = 500, AUTH_KEY = 'cae-kb-v4-auth';
   const ENTRY_COLUMNS = 'id,category,title,tags,symptom,root_cause,solution,failed_attempts,notes,reference_source,images,views,created_at,updated_at';
+  const CONTENT_COLUMNS = 'content_type,summary,technical_explanation,procedure,key_rules,verification';
   const UUID = '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}';
 
   const m = /^https:\/\/([a-z0-9]{20})\.supabase\.co\/?$/.exec(String(cfg.url || '').trim());
@@ -88,7 +89,10 @@ function createSupabaseProvider(cfg) {
     const out = [];
     for (let offset = 0; ; offset += PAGE) {
       const res = await guardedFetch(`${origin}/rest/v1/${table}?${query}&limit=${PAGE}&offset=${offset}`);
-      if (!res.ok) throw new Error(`${table}: HTTP ${res.status}${res.status === 401 || res.status === 403 ? '（請檢查 publishable key 與 RLS 讀取權限）' : ''}`);
+      if (!res.ok) {
+        const detail = await res.json().catch(() => ({}));
+        throw Object.assign(new Error(`${table}: HTTP ${res.status}${res.status === 401 || res.status === 403 ? '（請檢查 publishable key 與 RLS 讀取權限）' : ''}`), { code: detail.code });
+      }
       const part = await res.json();
       out.push(...part);
       if (part.length < PAGE) return out;
@@ -98,7 +102,7 @@ function createSupabaseProvider(cfg) {
   /* Text pasted from Windows can carry \r\n line endings; the article renderer (steps, lists) expects \n. */
   const lf = s => typeof s === 'string' ? s.replace(/\r\n?/g, '\n') : s;
   const normalizeEntry = e => ({
-    ...e, title: lf(e.title), symptom: lf(e.symptom), root_cause: lf(e.root_cause), solution: lf(e.solution), notes: lf(e.notes), reference_source: lf(e.reference_source),
+    ...KBContent.normalize(e),
     tags: e.tags || [], failed_attempts: (e.failed_attempts || []).map(lf), images: Array.isArray(e.images) ? e.images : [], views: e.views || 0
   });
 
@@ -122,7 +126,11 @@ function createSupabaseProvider(cfg) {
       if (problem) throw new Error(problem);
       const [categories, entries] = await Promise.all([
         rows('software_categories', 'select=key,label,parent_key,is_active,sort_order,description&order=sort_order.asc,key.asc'),
-        rows('entries', `select=${ENTRY_COLUMNS}&order=updated_at.desc`)
+        rows('entries', `select=${ENTRY_COLUMNS},${CONTENT_COLUMNS}&order=updated_at.desc`).catch(err => {
+          // Phase 5 may not be installed yet: keep legacy reading available.
+          if (!['42703', 'PGRST204'].includes(err.code)) throw err;
+          return rows('entries', `select=${ENTRY_COLUMNS}&order=updated_at.desc`);
+        })
       ]);
       return { categories: categories.map(c => ({ ...c, label: lf(c.label), description: lf(c.description || '') })), entries: entries.map(normalizeEntry) };
     },
@@ -175,11 +183,9 @@ function createSupabaseProvider(cfg) {
     /* Inserts one knowledge entry (the author is set by the database from the login). Returns the saved row. */
     async createEntry(entry) {
       if (!session) throw Object.assign(new Error('請先登入'), { status: 401 });
-      const body = {
-        title: entry.title, category: entry.category, tags: entry.tags || [], symptom: entry.symptom || '', root_cause: entry.root_cause || '', solution: entry.solution || '',
-        failed_attempts: entry.failed_attempts || [], notes: entry.notes || '', reference_source: entry.reference_source || '', images: entry.images || []
-      };
+      const body = KBContent.payload(entry);
       const res = await guardedFetch(`${origin}/rest/v1/entries`, { method: 'POST', headers: { 'Content-Type': 'application/json', Prefer: 'return=representation' }, body: JSON.stringify(body) });
+      if (!res.ok && res.status === 400) { const detail = await res.clone().json().catch(() => ({})); if (['42703', 'PGRST204'].includes(detail.code)) throw new Error('內容類型欄位尚未就緒，請由管理員確認 phase5-content-types.sql migration。'); }
       if (!res.ok) throw Object.assign(new Error(res.status === 401 || res.status === 403 ? '沒有儲存權限，請確認已登入' : `儲存失敗（HTTP ${res.status}）`), { status: res.status });
       const saved = await res.json();
       const row = normalizeEntry(Array.isArray(saved) ? saved[0] : saved);
@@ -190,11 +196,9 @@ function createSupabaseProvider(cfg) {
        out; they are deleted from storage after the row was saved. Returns { entry, imagesFailed }. */
     async updateEntry(id, entry, removedPaths = []) {
       if (!session) throw Object.assign(new Error('請先登入'), { status: 401 });
-      const body = {
-        title: entry.title, category: entry.category, tags: entry.tags || [], symptom: entry.symptom || '', root_cause: entry.root_cause || '', solution: entry.solution || '',
-        failed_attempts: entry.failed_attempts || [], notes: entry.notes || '', reference_source: entry.reference_source || '', images: entry.images || []
-      };
+      const body = KBContent.payload(entry);
       const res = await guardedFetch(`${origin}/rest/v1/entries?id=eq.${id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json', Prefer: 'return=representation' }, body: JSON.stringify(body) });
+      if (!res.ok && res.status === 400) { const detail = await res.clone().json().catch(() => ({})); if (['42703', 'PGRST204'].includes(detail.code)) throw new Error('內容類型欄位尚未就緒，請由管理員確認 phase5-content-types.sql migration。'); }
       if (!res.ok) throw Object.assign(new Error(res.status === 401 || res.status === 403 ? '沒有修改權限，請確認已登入' : `儲存失敗（HTTP ${res.status}）`), { status: res.status });
       const saved = await res.json();
       if (!saved.length) throw Object.assign(new Error('只能修改自己新增的知識'), { status: 403 });

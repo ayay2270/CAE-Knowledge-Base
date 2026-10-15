@@ -14,6 +14,9 @@ const LocalStore = {
     const all = this.list(); all.unshift(entry);
     localStorage.setItem(this.KEY, JSON.stringify(all));
   },
+  update(entry) {
+    localStorage.setItem(this.KEY, JSON.stringify(this.list().map(e => e.id === entry.id ? entry : e)));
+  },
   clear() { try { localStorage.removeItem(this.KEY); } catch (e) { /* ignore */ } },
   count() { return this.list().length; }
 };
