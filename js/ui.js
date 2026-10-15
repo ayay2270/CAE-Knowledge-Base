@@ -39,7 +39,7 @@ function wireUi() {
   document.addEventListener('keydown', e => { if (e.target.id === 'qHero' && e.key === 'Enter') { clearTimeout(C.ht); C.hq = e.target.value; S.q = C.hq; $('#q').value = S.q; C.searchCat = 'all'; actions.cSearchPage(); } if (e.target.id === 'qHero' && e.key === 'Escape') { e.target.value = ''; C.hq = ''; kAllList(); } });
   document.addEventListener('change', e => { if (e.target.id === 'kSort') { S.sort = e.target.value; kRefreshList(); } });
 }
-function onSearch() { C.drop = -1; C.searchCat = 'all'; if (C.view === 'search') { cDropClose(); renderDetail(); } else cDrop(); }
+function onSearch() { C.drop = -1; C.searchCat = 'all'; if (C.view === 'search') { cDropClose(); renderDetail(); cWriteHistory(true); } else cDrop(); }
 function cDropClose() { $('#cDrop')?.classList.add('hidden'); $('#q')?.setAttribute('aria-expanded', 'false'); }
 function cDrop() {
   const el = $('#cDrop'); if (!el) return;
@@ -156,13 +156,64 @@ function cSearchPage(el) {
 }
 function cCrumb(items) { return `<nav class="c-crumb" aria-label="位置">${items.map((x, i) => i < items.length - 1 ? `<button data-act="${x.act}" data-k="${esc(x.k || '')}">${esc(x.t)}</button><i class="ti ti-chevron-right"></i>` : `<span>${esc(x.t)}</span>`).join('')}</nav>`; }
 
+/* Browser history stores view metadata, never article content, images or login tokens. */
+function cViewState() {
+  return { view: C.view, cat: C.cat, root: C.root, sel: S.sel, q: S.q, hq: C.hq,
+    searchCat: C.searchCat, sort: S.sort, tag: S.tag, scrollTop: $('#detail')?.scrollTop || 0,
+    editId: C.view === 'add' ? AK.editId : null };
+}
+function cRemember() {
+  if (history.state?.kb) history.replaceState({ ...history.state, kb: cViewState() }, '', location.href);
+}
+function cWriteHistory(replace = false) {
+  const base = location.pathname + location.search;
+  const hash = C.view === 'article' ? '#' + encodeURIComponent(S.sel)
+    : C.view === 'category' ? '#cat/' + encodeURIComponent(C.cat)
+    : C.view === 'search' ? '#search/' + encodeURIComponent(S.q)
+    : C.view === 'add' ? (AK.editId ? '#edit/' + encodeURIComponent(AK.editId) : '#add') : '';
+  const url = base + hash, push = !replace && url !== base + location.hash;
+  history[push ? 'pushState' : 'replaceState']({ kb: cViewState(), fromApp: push || !!history.state?.fromApp }, '', url);
+  C.navUrl = location.href;
+}
+function cRouteFromUrl() {
+  let h; try { h = decodeURIComponent(location.hash.slice(1)); } catch { h = ''; }
+  if (h.startsWith('cat/') && cCatNode(h.slice(4))) return { view: 'category', cat: h.slice(4) };
+  if (h.startsWith('search/')) return { view: 'search', q: h.slice(7) };
+  if (h === 'add') return { view: 'add' };
+  // An edit link after reload returns to the article; drafts stay only in memory.
+  const id = h.startsWith('edit/') ? h.slice(5) : h;
+  if (id && S.entries.some(e => e.id === id)) return { view: 'article', sel: id };
+  return { view: 'all' };
+}
+function cRestoreView(saved) {
+  let state = saved || cRouteFromUrl();
+  if (state.view === 'article' && !S.entries.some(e => e.id === state.sel)) state = { view: 'all' };
+  if (state.view === 'category' && !cCatNode(state.cat)) state = { view: 'all' };
+  if (state.view === 'add' && state.editId && (!AK.d || AK.editId !== state.editId)) state = { view: 'article', sel: state.editId };
+  if (state.view === 'add' && !state.editId && AK.editId) state = { view: 'all' };
+  if (state.view === 'article' && !S.entries.some(e => e.id === state.sel)) state = { view: 'all' };
+  clearTimeout(C.ht);
+  C.view = state.view; C.cat = state.cat || null; C.hq = state.hq || ''; C.searchCat = state.searchCat || 'all';
+  S.sel = state.sel || null; S.q = state.q || ''; S.sort = state.sort || 'new'; S.tag = state.tag || null;
+  if (C.view === 'article') C.root = cRootOf(S.entries.find(e => e.id === S.sel));
+  else C.root = state.root || null;
+  if (C.view === 'add' && !AK.d) { AK.d = akBlank(); AK.step = 1; AK.editId = null; AK.editLocal = false; AK.prev = { view: 'all' }; }
+  $('#q').value = S.q; cDropClose();
+  renderSide(); renderDetail();
+  $('#detail').scrollTo({ top: state.scrollTop || 0, behavior: 'instant' });
+  C.spyTarget = null; cSpy();
+  cWriteHistory(true);
+}
+window.addEventListener('popstate', e => { if (C.ready) cRestoreView(e.state?.kb); });
+window.addEventListener('hashchange', () => { if (C.ready && C.navUrl !== location.href) cRestoreView(); });
+
 /* ---------- article open / render dispatch ---------- */
-function cOpen(id) {
+function cOpen(id, { replace = false } = {}) {
   const e = S.entries.find(x => x.id === id); if (!e) return;
+  cRemember();
   S.sel = id; S.gi = 0; C.view = 'article'; C.root = cRootOf(e);
-  history.replaceState(null, '', '#' + id);
   cDropClose();
-  renderSide(); renderDetail(true);
+  renderSide(); renderDetail(true); cWriteHistory(replace);
 }
 function renderDetail(resetScroll) {
   const el = $('#detail'); if (!el) return;
@@ -189,19 +240,18 @@ function cSpy() {
   links.forEach(a => a.classList.toggle('on', a.dataset.t === cur));
 }
 
-/* First view: an article or category named in the URL hash, otherwise 所有文章. */
+/* Boot and reload restore the current entry instead of adding another visit. */
 function afterLoad() {
-  const h = decodeURIComponent(location.hash.slice(1));
-  if (h.startsWith('cat/') && (cCatNode(h.slice(4)))) { C.view = 'category'; C.cat = h.slice(4); }
-  else if (h && S.entries.some(e => e.id === h)) return cOpen(h);
-  renderSide(); renderDetail(true);
+  C.ready = true;
+  if ('scrollRestoration' in history) history.scrollRestoration = 'manual';
+  cRestoreView(history.state?.kb);
 }
 
 function cGo(view, cat) {
+  cRemember();
   clearTimeout(C.ht); if (view === 'all') { C.hq = ''; S.q = ''; $('#q').value = ''; } C.searchCat = 'all';
   C.view = view; C.cat = cat || null; S.sel = null; cDropClose();
-  history.replaceState(null, '', view === 'category' ? '#cat/' + cat : location.pathname + location.search);
-  renderSide(); renderDetail(true);
+  renderSide(); renderDetail(true); cWriteHistory();
 }
 Object.assign(actions, {
   cHome: () => cGo('all'),
@@ -215,9 +265,9 @@ Object.assign(actions, {
     main.scrollTo({ top, behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth' });
     cSpy();
   },
-  kSearchCat: b => { C.searchCat = b.dataset.k; if (C.view === 'all') kAllList(); else renderDetail(); },
+  kSearchCat: b => { C.searchCat = b.dataset.k; if (C.view === 'all') kAllList(); else renderDetail(); cWriteHistory(true); },
   kHeroSearch: () => { clearTimeout(C.ht); C.hq = $('#qHero').value; S.q = C.hq; $('#q').value = S.q; C.searchCat = 'all'; actions.cSearchPage(); },
   kExample: b => { S.q = b.dataset.q; $('#q').value = S.q; C.searchCat = 'all'; actions.cSearchPage(); },
-  cSearchPage: () => { C.view = 'search'; S.sel = null; cDropClose(); renderSide(); renderDetail(true); },
-  dtag: b => { $('#q').value = b.dataset.t; S.q = b.dataset.t; C.view = 'search'; S.sel = null; renderSide(); renderDetail(true); }
+  cSearchPage: () => { cRemember(); C.view = 'search'; S.sel = null; cDropClose(); renderSide(); renderDetail(true); cWriteHistory(); },
+  dtag: b => { $('#q').value = b.dataset.t; S.q = b.dataset.t; actions.cSearchPage(); }
 });

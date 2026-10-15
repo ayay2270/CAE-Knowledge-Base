@@ -50,12 +50,11 @@ function akCategoryKey(d) { const n = akRootNode(d.root); return n && n.kids.len
 function akDirty() { const d = AK.d; return !!d && !!(d.content_type || d.root || d.sub || d.title || KBContent.textFields.some(f => d[f]) || d.ref || d.tags || d.images.length || d.failed.some(Boolean)); }
 
 function akOpen() {
-  AK.prev = { view: C.view, cat: C.cat, sel: S.sel };
+  if (C.view !== 'add') { cRemember(); AK.prev = cViewState(); }
   if (!AK.d) AK.d = akBlank();
   AK.step = AK.step || 1; AK.err = {};
   C.view = 'add'; S.sel = null;
-  history.replaceState(null, '', location.pathname + location.search);
-  renderSide(); renderDetail(true);
+  renderSide(); renderDetail(true); cWriteHistory();
 }
 /* Edit one of the user's own entries: the same four-step form, filled from the entry. */
 function akPlaceFromImage(im) {
@@ -82,10 +81,8 @@ function akClose(toSaved) {
   const p = AK.prev || { view: 'all' };
   AK.d = null; AK.step = 1; AK.err = {}; AK.editId = null; AK.editLocal = false;
   if (toSaved) return;
-  if (p.view === 'category' && p.cat) { C.view = 'category'; C.cat = p.cat; }
-  else if (p.view === 'article' && p.sel && S.entries.some(e => e.id === p.sel)) { return cOpen(p.sel); }
-  else C.view = 'all';
-  renderSide(); renderDetail(true);
+  if (history.state?.kb?.view === 'add' && history.state.fromApp) { history.back(); return; }
+  cRestoreView(p);
 }
 
 /* ---------- validation ---------- */
@@ -200,6 +197,7 @@ async function akSaveLive() {
   if (!KBData.auth.session()) { toast('登入已失效，請重新登入', true); return authOpen(akSaveLive); }
   if (btn) { btn.disabled = true; btn.innerHTML = '<span class="k-spin"></span>儲存中…'; }
   try {
+    if (KBData.ensureContentSchema) await KBData.ensureContentSchema();
     const images = [];
     for (const im of d.images) {
       if (im.orig) { images.push({ ...im.orig, caption: im.caption.trim(), ...akPlaceField(im) }); continue; }   // already stored: keep the file
@@ -216,13 +214,13 @@ async function akSaveLive() {
       S.entries = S.entries.map(x => x.id === id ? r.entry : x);
       akClose(true); renderSide();
       toast(r.imagesFailed ? `已更新，但有 ${r.imagesFailed} 張舊圖片未能刪除` : '已更新', !!r.imagesFailed);
-      return cOpen(id);
+      return cOpen(id, { replace: true });
     }
     const saved = await KBData.createEntry(body);
     S.entries.unshift(saved);
     akClose(true);
     toast('已儲存到資料庫');
-    cOpen(saved.id);
+    cOpen(saved.id, { replace: true });
   } catch (err) {
     if (err.status === 401) { toast('登入已失效，請重新登入後再儲存', true); authOpen(akSaveLive); }
     else toast(err.message || '儲存失敗', true);
@@ -244,7 +242,7 @@ function akSave() {
   else S.entries.unshift(entry);
   akClose(true);
   toast('已儲存到本機原型（只存在這個瀏覽器）');
-  cOpen(entry.id);
+  cOpen(entry.id, { replace: true });
 }
 
 /* ---------- events ---------- */

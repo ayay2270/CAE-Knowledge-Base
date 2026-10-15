@@ -23,4 +23,7 @@ comment on column public.entries.content_type is
 comment on column public.entries.procedure is 'Optional technical knowledge procedure; numbered text steps.';
 comment on column public.entries.verification is 'Optional troubleshooting verification result.';
 
+-- Refresh the REST API schema cache after the additive DDL becomes visible.
+notify pgrst, 'reload schema';
+
 commit;

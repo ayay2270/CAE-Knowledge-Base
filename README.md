@@ -165,7 +165,7 @@ available on Wikimedia Commons: <https://commons.wikimedia.org/wiki/File:Foreste
 The new form requires an explicit choice of 技術知識 (`knowledge`) or 問題排除 (`troubleshooting`).
 Missing / NULL `content_type` is interpreted as troubleshooting; existing JSON and database rows need no backfill.
 
-- Knowledge fields: `summary`, `technical_explanation`, optional `procedure`, `key_rules`, `notes`.
+- Knowledge fields: required `summary`; optional `technical_explanation`, `procedure`, `key_rules`, `notes`.
 - Troubleshooting fields: `symptom`, `root_cause`, `solution`, optional `verification`, `failed_attempts`, `notes`.
 - Shared: title, category, tags, reference_source, images and existing author / timestamp metadata.
 - Switching type preserves text (inactive fields remain dormant in storage and are not rendered). New images
@@ -177,7 +177,7 @@ Missing / NULL `content_type` is interpreted as troubleshooting; existing JSON a
 `supabase/phase5-content-types.sql` is an **additive migration file for separate review**. It adds six columns and
 extends Phase 4's column-level UPDATE grants without changing author-only RLS. It has not been executed as part
 of this local change. A database needs this migration before saving the new payload; legacy reading also works
-before migration through a read-only column fallback. No deployment or configuration changes are included.
+before migration through a read-only column fallback. Saving checks column availability before image upload; a failed check retains the current form, and retry checks again after migration. No deployment or configuration changes are included.
 
 Validation:
 

@@ -14,6 +14,8 @@ function app(fetch = async () => { throw new Error('Unexpected network'); }) {
 test('required fields depend on explicit type; optional fields may be empty',()=>{
  const run=app(); run('AK.d=akBlank()'); assert.equal(run('akValidate(1)'),false); assert.equal(run('AK.err.content_type'),'required');
  run(`Object.assign(AK.d,${JSON.stringify(knowledge)})`); assert.equal(run('akValidate(2)'),true);
+ run(`AK.d.technical_explanation=''`);assert.equal(run('akValidate(2)'),true);
+ run(`AK.d.summary=''`);assert.equal(run('akValidate(2)'),false);
  run(`AK.d.content_type='troubleshooting'`); assert.equal(run('akValidate(2)'),false);
  run(`Object.assign(AK.d,{symptom:'a',root_cause:'b',solution:'c'})`); assert.equal(run('akValidate(2)'),true);
 });
@@ -62,4 +64,32 @@ test('type-aware snippets and legacy-only placements never leak into knowledge',
  run(`AK.d={...akBlank(),content_type:'troubleshooting',images:[{place:'ref',url:'reference'},{place:'fails',url:'failure'}]}`);
  assert.equal(run('akNormalizePlaces()'),0);
  run(`AK.d.content_type='knowledge'`);assert.equal(run('akNormalizePlaces()'),2);assert.equal(run('AK.d.images.map(im=>im.place).join()'),'summary,summary');
+});
+
+test('missing schema blocks create/update before writes and succeeds on retry after migration',async()=>{
+ let ready=false;const req=[];
+ const run=app(async(url,init)=>{
+  req.push({url,method:init.method});
+  if(init.method==='GET')return ready?Response.json([]):Response.json({code:'PGRST204'},{status:400});
+  return Response.json([{...JSON.parse(init.body),id:'22222222-2222-4222-8222-222222222222'}]);
+ });
+ run(`globalThis.p=createSupabaseProvider({url:'https://abcdefghijklmnopqrst.supabase.co',publishableKey:'sb_publishable_test'})`);
+ await assert.rejects(run(`p.createEntry(${JSON.stringify(knowledge)})`),e=>e.code==='CONTENT_SCHEMA_MISSING');
+ await assert.rejects(run(`p.updateEntry('22222222-2222-4222-8222-222222222222',${JSON.stringify(knowledge)})`),e=>e.code==='CONTENT_SCHEMA_MISSING');
+ assert.ok(req.every(r=>r.method==='GET'));assert.ok(req.every(r=>r.url.includes('limit=0')));
+ ready=true;assert.equal((await run(`p.createEntry(${JSON.stringify(knowledge)})`)).content_type,'knowledge');
+ assert.equal(req.filter(r=>r.method==='POST').length,1);
+});
+test('schema failure in form keeps draft and stops before image upload',async()=>{
+ let network=0;const run=app(async()=>{network++;throw new Error('unexpected request');});
+ run(`globalThis.C={view:'add'}; document.querySelector=()=>({disabled:false}); akRefresh=()=>{}; toast=()=>{};
+ KBData={auth:{session:()=>({user:{id:'test'}})},ensureContentSchema:async()=>{throw new Error('missing schema');}};
+ AK.d={...akBlank(),content_type:'knowledge',title:'Retained title',summary:'Retained summary',images:[{url:'data:image/png;base64,test',caption:'Retained image',place:'summary'}]};`);
+ await run('akSaveLive()');assert.equal(network,0);assert.equal(run('AK.d.summary'),'Retained summary');assert.equal(run('AK.d.images.length'),1);
+});
+test('empty technical explanation is omitted in both preview and reading sections',()=>{
+ const run=app();run(`globalThis.e={...${JSON.stringify(knowledge)},technical_explanation:''}`);
+ assert.equal(run('cArticleSections(e,[]).map(s=>s[0]).join()'),'summary');
+ run(`e.images=[{section:'technical_explanation',src:'example.svg'}]`);
+ assert.equal(run('cArticleSections(e,cFigs(e)).map(s=>s[0]).join()'),'summary,technical_explanation');
 });

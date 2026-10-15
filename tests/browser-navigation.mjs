@@ -1,0 +1,52 @@
+import assert from 'node:assert/strict';
+import {createRequire} from 'node:module';
+import {spawn} from 'node:child_process';
+const require=createRequire(import.meta.url);
+const {chromium}=require(process.env.PLAYWRIGHT_MODULE || 'playwright');
+const server=spawn(process.execPath,['scripts/serve.mjs'],{env:{...process.env,PORT:'8097'},stdio:'pipe',windowsHide:true});
+await new Promise((resolve,reject)=>{server.stdout.once('data',resolve);server.once('error',reject);});
+const browser=await chromium.launch({channel:'chrome',headless:true}).catch(e=>{server.kill();throw e;});
+const base='http://127.0.0.1:8097/';
+const context=await browser.newContext();
+await context.route(/https:\/\/[^/]+\.supabase\.co\//,route=>route.abort());
+const page=await context.newPage(),errors=[];
+page.on('pageerror',e=>errors.push(e.message));
+page.on('dialog',d=>d.accept());
+async function home(){await page.goto(base+'?source=local');await page.locator('.k-row').first().waitFor();}
+async function view(expected){await page.waitForFunction(v=>C.view===v,expected);}
+try {
+ await context.route('https://previous-site.invalid/**', route=>route.fulfill({contentType:'text/html',body:'<p>Previous website</p>'})); await page.goto('https://previous-site.invalid/'); await home();
+ await page.locator('#side [data-k=lsdyna]').click();await view('category');
+ const id=await page.locator('.k-row').first().getAttribute('data-id');
+ await page.locator('.k-row').first().click();await view('article');
+ await page.goBack();
+ assert.equal(new URL(page.url()).pathname,'/','Back must stay in the app after opening an article');
+ await view('category');assert.equal(await page.evaluate(()=>C.cat),'lsdyna');
+ await page.goBack();await view('all');await page.goBack();assert.equal(new URL(page.url()).hostname,'previous-site.invalid');await page.goForward();await view('all');await page.goForward();await view('category');await page.goForward();await view('article');
+ assert.equal(await page.evaluate(()=>S.sel),id);
+ console.log('PASS category/article Back and Forward stay inside the site');
+ await page.reload();await view('article');await page.goBack();await view('category');
+ console.log('PASS reload does not add a duplicate article history entry');
+ await home();await page.locator('#q').fill('contact');await page.locator('#q').press('Enter');await view('search');
+ await page.locator('.k-row').first().click();await view('article');await page.goBack();await view('search');
+ assert.equal(await page.locator('#q').inputValue(),'contact');assert.match(await page.locator('.k-search-title').innerText(),/contact/);
+ await page.reload();await view('search');assert.equal(await page.locator('#q').inputValue(),'contact');
+ console.log('PASS search query restores on Back and reload');
+ await page.goto(base+'?source=local#demo-hm-step');await view('article');
+ const depth=await page.evaluate(()=>history.length);await page.evaluate(()=>cOpen(S.sel));assert.equal(await page.evaluate(()=>history.length),depth);
+ await page.evaluate(()=>location.hash='cat/lsdyna');await view('category');await page.goBack();await view('article');
+ console.log('PASS direct links, manual hashes and same-article redraws');
+ await page.locator('#detail').evaluate(el=>el.scrollTo({top:250,behavior:'instant'}));
+ const scroll=await page.locator('#detail').evaluate(el=>el.scrollTop);assert.ok(scroll>0);
+ await page.locator('.k-brand').click();await view('all');await page.goBack();await view('article');
+ assert.ok(Math.abs(await page.locator('#detail').evaluate(el=>el.scrollTop)-scroll)<=16, 'restore scroll within minor font/image layout shifts');
+ console.log('PASS article scroll position restores on Back');
+ await page.locator('[data-act=kAdd]').click();await view('add');await page.locator('#ak-type-knowledge').check();await page.locator('#ak-title').fill('Draft survives Back');
+ await page.goBack();await view('article');assert.equal(await page.evaluate(()=>S.sel),'demo-hm-step');await page.goForward();await view('add');assert.equal(await page.locator('#ak-title').inputValue(),'Draft survives Back');
+ await page.locator('#ak-root').selectOption('lsdyna');await page.locator('[data-act=akNext]').click();await page.locator('#ak-summary').fill('Draft summary');await page.locator('[data-act=akPrev]').click();assert.equal(await page.locator('#ak-title').inputValue(),'Draft survives Back');
+ await page.locator('[data-act=akCancel]').click();await view('article');assert.equal(await page.evaluate(()=>S.sel),'demo-hm-step');assert.match(page.url(),/#demo-hm-step$/);
+ console.log('PASS form Back/Forward preserves draft; Previous and Cancel return correctly');
+ await page.locator('[data-act=kAdd]').click();await view('add');await page.locator('#ak-type-knowledge').check();await page.locator('#ak-root').selectOption('lsdyna');await page.locator('#ak-title').fill('History save');await page.locator('[data-act=akNext]').click();await page.locator('#ak-summary').fill('summary');await page.locator('#ak-technical_explanation').fill('explanation');await page.locator('[data-act=akGo][data-s="4"]').click();await page.locator('[data-act=akSave]').click();await view('article');await page.goBack();await view('article');assert.equal(await page.evaluate(()=>S.sel),'demo-hm-step');
+ console.log('PASS save replaces form entry instead of reopening a stale form on Back');
+ assert.deepEqual(errors,[]);console.log('PASS no browser JavaScript errors');
+} finally {await browser.close();server.kill();}

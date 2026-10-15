@@ -99,6 +99,22 @@ function createSupabaseProvider(cfg) {
     }
   }
 
+  let contentSchemaReady = false;
+  const isMissingColumn = code => ['42703', 'PGRST204'].includes(code);
+  const contentSchemaError = () => Object.assign(new Error('資料庫尚未完成內容類型更新，暫時無法儲存。目前輸入內容仍保留，請管理員先套用 phase5-content-types.sql。'), { code: 'CONTENT_SCHEMA_MISSING' });
+  /* Read-only probe before uploading images or writing an entry. A retry rechecks after migration. */
+  async function ensureContentSchema() {
+    if (problem) throw new Error(problem);
+    if (contentSchemaReady) return;
+    const res = await guardedFetch(`${origin}/rest/v1/entries?select=${CONTENT_COLUMNS}&limit=0`);
+    if (!res.ok) {
+      const detail = await res.json().catch(() => ({}));
+      if (isMissingColumn(detail.code)) throw contentSchemaError();
+      throw new Error(`無法確認資料庫是否可儲存（HTTP ${res.status}），目前輸入內容仍保留，請稍後重試。`);
+    }
+    contentSchemaReady = true;
+  }
+
   /* Text pasted from Windows can carry \r\n line endings; the article renderer (steps, lists) expects \n. */
   const lf = s => typeof s === 'string' ? s.replace(/\r\n?/g, '\n') : s;
   const normalizeEntry = e => ({
@@ -115,6 +131,7 @@ function createSupabaseProvider(cfg) {
     label: 'Supabase',
     projectRef: m ? m[1] : null,
     canWrite: !problem,
+    ensureContentSchema,
     canDelete: id => !!session && mine.has(id),
     async refreshMine() {
       if (!session) { mine = new Set(); return mine; }
@@ -126,9 +143,10 @@ function createSupabaseProvider(cfg) {
       if (problem) throw new Error(problem);
       const [categories, entries] = await Promise.all([
         rows('software_categories', 'select=key,label,parent_key,is_active,sort_order,description&order=sort_order.asc,key.asc'),
-        rows('entries', `select=${ENTRY_COLUMNS},${CONTENT_COLUMNS}&order=updated_at.desc`).catch(err => {
+        rows('entries', `select=${ENTRY_COLUMNS},${CONTENT_COLUMNS}&order=updated_at.desc`).then(entries => { contentSchemaReady = true; return entries; }).catch(err => {
           // Phase 5 may not be installed yet: keep legacy reading available.
-          if (!['42703', 'PGRST204'].includes(err.code)) throw err;
+          if (!isMissingColumn(err.code)) throw err;
+          contentSchemaReady = false;
           return rows('entries', `select=${ENTRY_COLUMNS}&order=updated_at.desc`);
         })
       ]);
@@ -183,9 +201,10 @@ function createSupabaseProvider(cfg) {
     /* Inserts one knowledge entry (the author is set by the database from the login). Returns the saved row. */
     async createEntry(entry) {
       if (!session) throw Object.assign(new Error('請先登入'), { status: 401 });
+      await ensureContentSchema();
       const body = KBContent.payload(entry);
       const res = await guardedFetch(`${origin}/rest/v1/entries`, { method: 'POST', headers: { 'Content-Type': 'application/json', Prefer: 'return=representation' }, body: JSON.stringify(body) });
-      if (!res.ok && res.status === 400) { const detail = await res.clone().json().catch(() => ({})); if (['42703', 'PGRST204'].includes(detail.code)) throw new Error('內容類型欄位尚未就緒，請由管理員確認 phase5-content-types.sql migration。'); }
+      if (!res.ok && res.status === 400) { const detail = await res.clone().json().catch(() => ({})); if (isMissingColumn(detail.code)) { contentSchemaReady = false; throw contentSchemaError(); } }
       if (!res.ok) throw Object.assign(new Error(res.status === 401 || res.status === 403 ? '沒有儲存權限，請確認已登入' : `儲存失敗（HTTP ${res.status}）`), { status: res.status });
       const saved = await res.json();
       const row = normalizeEntry(Array.isArray(saved) ? saved[0] : saved);
@@ -196,9 +215,10 @@ function createSupabaseProvider(cfg) {
        out; they are deleted from storage after the row was saved. Returns { entry, imagesFailed }. */
     async updateEntry(id, entry, removedPaths = []) {
       if (!session) throw Object.assign(new Error('請先登入'), { status: 401 });
+      await ensureContentSchema();
       const body = KBContent.payload(entry);
       const res = await guardedFetch(`${origin}/rest/v1/entries?id=eq.${id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json', Prefer: 'return=representation' }, body: JSON.stringify(body) });
-      if (!res.ok && res.status === 400) { const detail = await res.clone().json().catch(() => ({})); if (['42703', 'PGRST204'].includes(detail.code)) throw new Error('內容類型欄位尚未就緒，請由管理員確認 phase5-content-types.sql migration。'); }
+      if (!res.ok && res.status === 400) { const detail = await res.clone().json().catch(() => ({})); if (isMissingColumn(detail.code)) { contentSchemaReady = false; throw contentSchemaError(); } }
       if (!res.ok) throw Object.assign(new Error(res.status === 401 || res.status === 403 ? '沒有修改權限，請確認已登入' : `儲存失敗（HTTP ${res.status}）`), { status: res.status });
       const saved = await res.json();
       if (!saved.length) throw Object.assign(new Error('只能修改自己新增的知識'), { status: 403 });
