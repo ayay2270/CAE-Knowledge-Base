@@ -7,7 +7,7 @@
       "parent_key": null,
       "is_active": true,
       "sort_order": 0,
-      "description": "包含 HyperMesh、OptiStruct 相關的除錯、設定與分析問題"
+      "description": "包含 HyperMesh、OptiStruct、SimLab 相關的除錯、設定與分析問題"
     },
     {
       "key": "hypermesh-2",
@@ -24,6 +24,14 @@
       "is_active": true,
       "sort_order": 20,
       "description": "結構分析、最佳化相關問題"
+    },
+    {
+      "key": "simlab",
+      "label": "SimLab",
+      "parent_key": "hm",
+      "is_active": true,
+      "sort_order": 30,
+      "description": "SimLab 前處理、網格建構、模型設定與分析相關問題"
     },
     {
       "key": "lsdyna",

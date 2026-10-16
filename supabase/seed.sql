@@ -3,10 +3,11 @@
 -- All figures in the sample article are generated illustrations (mock) served from the site's own assets/figures folder.
 
 insert into public.software_categories (key, label, parent_key, description, is_active, sort_order) values
-  ($q$hm$q$, $q$HyperWorks$q$, null, $q$包含 HyperMesh、OptiStruct 相關的除錯、設定與分析問題$q$, true, 0),
+  ($q$hm$q$, $q$HyperWorks$q$, null, $q$包含 HyperMesh、OptiStruct、SimLab 相關的除錯、設定與分析問題$q$, true, 0),
   ($q$lsdyna$q$, $q$LS-DYNA$q$, null, $q$顯式動力學分析：接觸、能量、穩定性與計算中止相關問題$q$, true, 30),
   ($q$hypermesh-2$q$, $q$HyperMesh$q$, $q$hm$q$, $q$幾何處理、網格、模型建構相關問題$q$, true, 10),
-  ($q$optistruct$q$, $q$OptiStruct$q$, $q$hm$q$, $q$結構分析、最佳化相關問題$q$, true, 20)
+  ($q$optistruct$q$, $q$OptiStruct$q$, $q$hm$q$, $q$結構分析、最佳化相關問題$q$, true, 20),
+  ($q$simlab$q$, $q$SimLab$q$, $q$hm$q$, $q$SimLab 前處理、網格建構、模型設定與分析相關問題$q$, true, 30)
 on conflict (key) do update set label = excluded.label, parent_key = excluded.parent_key, description = excluded.description,
   is_active = excluded.is_active, sort_order = excluded.sort_order;
 
