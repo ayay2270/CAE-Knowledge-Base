@@ -21,7 +21,7 @@ function authOpen(after) {
   m.id = 'authModal'; m.className = 'k-modal';
   m.innerHTML = `<div class="k-dialog" role="dialog" aria-modal="true" aria-labelledby="authT">
     <h2 id="authT">登入</h2>
-    <p class="k-dsub">登入後才能新增知識。瀏覽內容不需要登入。</p>
+    <p class="k-dsub">登入後才能閱讀與管理這份知識庫。</p>
     <form id="authForm" novalidate>
       <label class="k-lab" for="authEmail">電子郵件</label>
       <input id="authEmail" type="email" autocomplete="username" required>
