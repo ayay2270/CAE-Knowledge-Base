@@ -1,190 +1,150 @@
-# CAE Knowledge Base V4
+# CAE Knowledge Base
 
-**Live site: https://ayay2270.github.io/CAE-Knowledge-Base-V4/** (GitHub Pages, served from `main`, root folder)
+個人使用的 CAE 知識庫，用來整理技術知識與問題排除紀錄。內容只給一位 owner 使用。
 
-A CAE knowledge base for **technical knowledge** and **troubleshooting** articles. Each content type has its own
-authoring and reading sections, with engineering figures linked to sections or numbered steps.
+## 線上版本
 
-## Interface
+https://ayay2270.github.io/CAE-Knowledge-Base/
 
-- **Header** — Lenovo logo + "CAE Knowledge Base", global search, and a **+ 新增知識** button.
-- **知識分類 sidebar** — 所有文章 · HyperWorks (HyperMesh, OptiStruct) · LS-DYNA, with article counts.
-- **所有文章** (landing) — a larger search field and the articles grouped by software / category.
-- **Category pages** — description, child-category cards (for HyperWorks) and the article list.
-- **Article page** — the approved Concept C2 reading view: breadcrumb, sections (現象 · 原因分析 · 解決方法 ·
-  試過但無效 · 備註 · 參考來源), "On this page" outline, figure gallery after the text, full-size image viewer,
-  previous / next article.
+## 主要功能
 
-## Status
+- 技術知識 / 問題排除兩種內容類型
+- CAE 軟體分類
+- 全域搜尋
+- 工程圖片與截圖
+- 新增 / 編輯 / 刪除
+- Supabase 私有資料
+- Local prototype mode
 
-- **Two data sources.** When `js/config.js` holds a Supabase Project URL and **publishable** key, V4 uses that project.
-  `?source=local` forces the local sample data. Supabase mode shows Supabase entries only; LocalStorage prototypes stay
-  out of that list and are not deleted.
-- **Supabase is private to one owner.** Logged out, the page does not load entries or images. Only the account named in
-  `supabase/privileges.sql` can read, create, edit, and delete. The site never contains a secret key, service_role key or database password.
-- **Static files are public prototype material.** `data/knowledge-base.json`, `assets/`, and `?source=local` are served
-  with the static site. Never put private CAE, company, or customer content there. Private content belongs only in the
-  authenticated Supabase database and the `kb-images` bucket.
-- **新增知識** — with Supabase configured and the owner signed in, it saves to the database. Without Supabase, or with
-  `?source=local`, it stays a local prototype: The four-step form (基本資訊 → 內容填寫 → 附圖與其他 → 確認儲存) produces
-  an entry in the normal knowledge schema, but "save" only writes to this browser's LocalStorage
-  (`js/local-store.js`). In prototype mode nothing is uploaded; entries are marked **本機原型**.
+## 系統架構
 
-## Run locally
+GitHub Pages + Vanilla JavaScript + Supabase。
 
-Requires Node.js 18+ (no packages to install).
+頁面只透過 `KBData`（`js/data-provider.js`）讀寫資料。
+
+```
+index.html
+css/styles.css
+js/config.js             Supabase Project URL 與 publishable key
+js/data-provider.js      選擇資料來源
+js/provider-supabase.js  正式資料；讀寫都要 owner session
+js/provider-local.js     本機範例 JSON
+js/auth-ui.js            登入
+js/core.js               狀態、分類、文字
+js/figures.js            文章與圖片
+js/ui.js                 列表、分類、搜尋
+js/add-knowledge.js      新增 / 編輯表單
+js/main.js               啟動
+js/local-store.js        本機 prototype
+data/knowledge-base.json 公開範例資料
+assets/                  公開靜態圖檔
+supabase/                SQL
+scripts/serve.mjs        本機靜態伺服器
+```
+
+## 資料來源
+
+### Supabase 模式
+
+`js/config.js` 有 Project URL 與 publishable key 時使用。這是正式私人資料。
+
+未登入時不載入文章與圖片。只有 `supabase/privileges.sql` 裡 `kb_is_owner()` 指定的 owner 可以：
+
+- 讀取
+- 新增
+- 編輯
+- 刪除
+
+Supabase 模式不會把這個瀏覽器的 LocalStorage prototype 混進正式列表，也不會刪除那些 prototype。
+
+### Local prototype 模式
+
+網址加上 `?source=local`，或尚未設定 Supabase 時，使用本機範例。只給測試與 prototype。
+
+表單仍是四步（基本資訊 → 內容填寫 → 附圖與其他 → 確認儲存），但儲存只寫入這個瀏覽器的 LocalStorage（`js/local-store.js`）。不會上傳圖片，文章會標成 **本機原型**。
+
+以下都是 GitHub Pages 的公開靜態資源：
+
+- `data/knowledge-base.json`
+- `assets/`
+- `?source=local`
+
+不得存放：
+
+- 公司內部 CAE 資料
+- 客戶資料
+- 私人工程截圖
+- 其他敏感資訊
+
+私人內容只應存在已登入的 Supabase database 與 `kb-images` Storage。
+
+## Supabase 設定
+
+在 SQL Editor 依序執行。都可以重複執行。
+
+1. `supabase/schema.sql`：建立資料表與 private bucket `kb-images`。不授予權限，重跑也不會改權限。
+2. `supabase/seed.sql`：範例資料。可由 `npm run seed:build` 從本機範例重新產生。
+3. `supabase/phase5-content-types.sql`：加上技術知識 / 問題排除欄位。沒跑之前仍可讀舊文章；新欄位要等這個 migration 才能儲存。
+4. `supabase/privileges.sql`：目前權限政策的最終基準。只有 owner 能讀寫；匿名與其他帳號不行。
+
+接著把 **Project URL** 與 **publishable key**（`sb_publishable_…`）寫進 `js/config.js`。Publishable key 可以放在前端。
+
+禁止放進這個 repository：
+
+- secret key
+- `service_role` key
+- database password
+
+`js/provider-supabase.js` 會拒絕 publishable key 以外的金鑰，也會拒絕舊的 V2 / V3 Supabase project。
+
+Authentication → Email：關閉 **Allow new users to sign up**。Owner 必須先存在，而且 User UID 必須符合 `kb_is_owner()`。
+
+`supabase/phase2-auth-write.sql`、`phase3-delete-own.sql`、`phase4-edit-own.sql` 已停用且內容是空的。重跑它們不會恢復舊的公開或多作者權限。
+
+### 部署到正式環境
+
+先鎖資料庫，再更新前端。舊前端暫時顯示空白或要求登入是可以接受的。
+
+1. 執行 `supabase/privileges.sql`。
+2. 只用 publishable key 確認讀不到 `entries` 與 `kb-images`。
+3. 部署這個前端。
+4. 以 owner 登入，確認讀取、新增、編輯、刪除，以及開啟或上傳圖片。
+
+## 本機執行
+
+需要 Node.js 18+，不用安裝套件。
 
 ```bash
 npm start
 ```
 
-Open <http://localhost:8080> (`PORT=3000 npm start` to use another port). The page must be served over
-HTTP because it loads `data/knowledge-base.json` with `fetch`; opening `index.html` as a file will not work.
-Any static server works, for example `python -m http.server 8080`.
+開啟 http://localhost:8080。要換 port 可用 `PORT=3000 npm start`。必須用 HTTP 伺服器，因為頁面會 `fetch` `data/knowledge-base.json`；直接開 `index.html` 不會成功。`python -m http.server 8080` 也可以。
 
-Web fonts (Google Fonts) and the Tabler icon font (jsDelivr) are loaded from their CDNs.
+字型與圖示來自 Google Fonts 與 jsDelivr。
 
-### QA options
+範例文章可用 `?figs=0` 到 `?figs=12`、`?long=1`、`#<entry id>`、`#cat/<category key>` 檢查版面。
 
-The sample article can be shown in different states through the URL:
-
-| URL | Effect |
-| --- | --- |
-| `/?figs=0` … `?figs=12` | number of figures on the sample article (0, 1, 3, 8, 12; default 8) |
-| `/?long=1` | adds extra text to the sample article to exercise long-article layout |
-| `/#<entry id>` | opens a specific article |
-| `/#cat/<category key>` | opens a category page (for example `#cat/hm`) |
-
-## Architecture
-
-```
-index.html            page shell
-css/styles.css        styles
-js/config.js          Supabase Project URL + publishable key (empty = local data)
-js/data-provider.js   picks the data source; the UI only talks to KBData
-js/provider-local.js  local sample data (JSON)
-js/provider-supabase.js  Supabase provider (owner session for reads and writes, strict request allow-list)
-js/auth-ui.js         login button + dialog
-js/core.js            state, software-category helpers, text / markdown helpers
-js/figures.js         figure model, article page, figure gallery, lightbox
-js/local-store.js     PROTOTYPE: browser-local storage for 新增知識
-js/ui.js              header, category sidebar, landing / category / search pages
-js/add-knowledge.js   PROTOTYPE: the 新增知識 form
-js/main.js            start-up
-data/                 knowledge-base.json (+ qa-long-article.json for ?long=1)
-supabase/             schema.sql and seed.sql for a new V4 project
-assets/brand/         Lenovo logo + hero background photo
-assets/icons/         HyperMesh and LS-DYNA software icons (original files, unchanged)
-assets/figures/       the sample article's illustrative (mock) figures, SVG
-scripts/serve.mjs     zero-dependency static dev server
-```
-
-The UI reads data only through `KBData` in `js/data-provider.js`:
-
-```
-UI  →  KBData.load() / prepareImages() / imageUrl()  →  Supabase (if configured)  |  data/knowledge-base.json
-```
-
-### Data shape
-
-`data/knowledge-base.json`:
-
-- `categories[]` — `key`, `label`, `parent_key`, `is_active`, `sort_order`, `description`
-  (software → sub-software tree)
-- `entries[]` — `id`, `category` (a leaf category key), `title`, `tags[]`, `symptom`, `root_cause`, `solution`,
-  `failed_attempts[]`, `notes`, `reference_source`, `created_at`, `updated_at`, and either
-  - `figures[]` — `order`, `section` (`symptom` · `root_cause` · `solution` · `fails` · `note` · `ref`),
-    `step` (`0`, a step number, or `"v"` for the verification group), `title`, `caption`, `src`, `mock`,
-    `defaultVisible`; or
-  - `images[]` — `path` (and optional `caption`) for stored pictures that have no section mapping yet;
-    they are shown under the problem section.
-
-Solution steps are written as a numbered list (`1.`, `2.`, …); figures with `step: n` attach to step *n*.
-
-## Supabase
-
-1. Create a **new** Supabase project for V4. (The V2 production and V3 development projects are blocked in
-   `js/provider-supabase.js` so V4 cannot be pointed at them by accident.)
-2. In **SQL Editor** run `supabase/schema.sql`, then `supabase/seed.sql` (sample data). Both are safe to re-run.
-   `schema.sql` creates the tables and the private `kb-images` bucket. It does not grant access, and re-running it
-   does not change privileges.
-3. Run `supabase/phase5-content-types.sql` to add the knowledge / troubleshooting columns. Safe to re-run. Reading
-   still works before this migration; saving the new fields does not.
-4. Run `supabase/privileges.sql` **last**. It is the only source of truth for policies and grants: one owner can
-   read, create, edit, and delete; anonymous users and every other account cannot. Safe to re-run.
-5. Copy the **Project URL** and the **publishable key** (`sb_publishable_…`, Project Settings → API Keys) into
-   `js/config.js`. The publishable key is public by design. **Never** put a secret key, a `service_role` key or the
-   database password in this repository — the provider refuses anything that is not a publishable key.
-6. **Authentication → Sign In / Providers → Email**: switch **Allow new users to sign up** OFF. The owner user must
-   already exist, and its User UID must be the id in `kb_is_owner()` inside `privileges.sql`.
-7. Open the site and click **登入**. `document.documentElement.dataset.source` is `supabase` when that connection is used.
-
-Apply the database lock before deploying this frontend. A temporary empty or locked previous frontend is acceptable.
-
-1. Run `supabase/privileges.sql`.
-2. Verify anonymous access is denied: with only the publishable key, entries and `kb-images` are not readable.
-3. Deploy this frontend.
-4. Log in as the owner and verify read, create, edit, delete, and opening or uploading an image.
-
-`supabase/phase2-auth-write.sql`, `phase3-delete-own.sql`, and `phase4-edit-own.sql` are retired and intentionally
-empty, so re-running them cannot restore public or per-author access.
-
-`supabase/seed.sql` is generated from the local sample data: `npm run seed:build`.
-
-### How the data maps
-
-- `software_categories` and `entries` have the columns listed under "Data shape".
-- `entries.images` is JSON: each item is `{ "path": "<object path in kb-images>" }` (private bucket, shown through
-  short-lived signed URLs) or `{ "src": "<static url>" }`, and may add `caption`, `title`, `section`, `step`,
-  `order`, `key` so a figure attaches to a section / step exactly like the local sample.
-
-The signed-in owner can add, edit, and delete every entry, including sample rows that have no `user_id`. Images upload
-into that user's folder of `kb-images`. A failed save reuses an upload that already succeeded, and deletes new uploads
-from that attempt only when the row write returns an HTTP error.
-
-How it is locked down: `supabase/privileges.sql` is the database gate. The browser only sends the requests listed in
-`RULES` in `js/provider-supabase.js` (owner reads, image signing, sign-in/refresh/logout, entry writes, and image
-upload/delete in the owner's folder). The login session is kept in this browser's localStorage (`cae-kb-v4-auth`).
-
-## Software icons
-
-`assets/icons/hypermesh.png` and `assets/icons/lsdyna.png` are the original icons and must not be redrawn or
-recoloured.
-
-## Credits
-
-The landing-page hero background (`assets/brand/hero-bg.jpg`) is a cropped, compressed version of
-"Forested mountain valley" by Stijn te Strake (Unsplash), published under CC0 1.0 (public domain) and
-available on Wikimedia Commons: <https://commons.wikimedia.org/wiki/File:Forested_mountain_valley_(Unsplash).jpg>.
-
-## Phase 5 — content types (local review)
-
-The new form requires an explicit choice of 技術知識 (`knowledge`) or 問題排除 (`troubleshooting`).
-Missing / NULL `content_type` is interpreted as troubleshooting; existing JSON and database rows need no backfill.
-
-- Knowledge fields: required `summary`; optional `technical_explanation`, `procedure`, `key_rules`, `notes`.
-- Troubleshooting fields: `symptom`, `root_cause`, `solution`, optional `verification`, `failed_attempts`, `notes`.
-- Shared: title, category, tags, reference_source, images and existing author / timestamp metadata.
-- Switching type preserves text (inactive fields remain dormant in storage and are not rendered). New images
-  use the active type's sections; invalid placements fall back to its first section with a notification.
-- Legacy image sections `note`, `fails`, `ref` remain supported; `solution` + `step: "v"` maps to verification.
-- Preview and reading share section / step rendering. Empty optional sections are omitted unless they contain images.
-- Search covers both content types' body fields. Local prototype articles support add, reload and edit.
-
-`supabase/phase5-content-types.sql` adds six columns and their column-level UPDATE grants. It does not change row
-policies. A database needs this migration before saving the new payload; legacy reading also works before migration
-through a read-only column fallback. Saving checks column availability before image upload; a failed check retains
-the current form, and retry checks again after migration.
-
-Validation:
+## 測試
 
 ```bash
 npm test
+npm run test:navigation
 npm run test:browser
 ```
 
-The browser suite requires Playwright and an installed Chrome (`BROWSER_CHANNEL` can select another channel).
-If Playwright is provided by a separate runtime, set `PLAYWRIGHT_MODULE` to its absolute package directory.
-`REVIEW_DIR` selects the output directory for screenshots and the 17-case JSON report (default `.local-review/`).
-The suite starts a loopback-only server, uses local data, and intercepts **all Supabase requests** in the database
-scenarios. It never sends database writes to any Supabase project. Do not commit generated review output.
+`test:browser` 需要 Playwright 與 Chrome。可用 `BROWSER_CHANNEL` 換瀏覽器。若 Playwright 不在預設路徑，把 `PLAYWRIGHT_MODULE` 指到它的 package 目錄。`REVIEW_DIR` 是截圖與報告目錄，預設 `.local-review/`，不要 commit。
+
+瀏覽器測試用本機資料，並攔截 Supabase 請求。它不會對任何 Supabase 專案寫入。
+
+## 部署
+
+GitHub Pages 從 `main` 的根目錄部署到：
+
+https://ayay2270.github.io/CAE-Knowledge-Base/
+
+## 注意事項
+
+- 正式資料在 Supabase。`data/`、`assets/` 與 `?source=local` 是公開 prototype，不要把私人 CAE 資料 commit 到 GitHub。
+- 圖片在 private bucket `kb-images`，頁面用短時效 signed URL 顯示。登入狀態存在這個瀏覽器的 `cae-kb-v4-auth`。
+- 儲存失敗時，已上傳成功的新圖片會在下一次沿用。只有資料列寫入明確回傳 HTTP 錯誤時，才刪除這次新上傳的檔案。
+- `content_type` 為空白時，文章視為問題排除。切換內容類型不會清掉已寫的文字。
