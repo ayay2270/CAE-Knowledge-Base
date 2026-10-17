@@ -4,7 +4,7 @@
    content_type, type-specific knowledge / troubleshooting fields, and shared metadata / images.
    Save: with Supabase configured and a signed-in user the entry is inserted into the database (images go to the private
    kb-images bucket). Otherwise it is a PROTOTYPE: LocalStorage only (js/local-store.js), nothing is uploaded. */
-const AK = { step: 1, d: null, err: {}, prev: null, editId: null, editLocal: false };   // editId: the entry being edited (null = new entry)
+const AK = { step: 1, d: null, err: {}, prev: null, editId: null, editLocal: false, saving: false };   // editId: the entry being edited (null = new entry)
 const AK_STEPS = ['基本資訊', '內容填寫', '附圖與其他', '確認儲存'];
 const AK_MAX_IMAGES = 8;
 
@@ -191,18 +191,34 @@ async function akAddFiles(files) {
 }
 
 /* ---------- save (PROTOTYPE: LocalStorage only) ---------- */
+/* Drops storage objects created by this attempt after a definite HTTP row-write failure.
+   Original images and paths from an uncertain network failure are left alone. */
+async function akDiscardNewUploads(uploaded) {
+  const originals = new Set(AK.d.images.map(im => im.orig && im.orig.path).filter(Boolean));
+  const fresh = uploaded.filter(item => item.path && !originals.has(item.path));
+  if (!fresh.length || !KBData.discardUploads) return;
+  let failed;
+  try { failed = await KBData.discardUploads(fresh.map(item => item.path)); } catch (e) { return; }
+  const keep = new Set(failed || []);
+  for (const item of fresh) if (!keep.has(item.path)) delete item.im.uploaded;
+}
 /* Saves to Supabase: upload the images first, then insert the entry. Nothing is added to the list unless the insert succeeds. */
 async function akSaveLive() {
+  if (AK.saving) return;
   const d = AK.d, btn = $('#detail [data-act="akSave"]');
   if (!KBData.auth.session()) { toast('登入已失效，請重新登入', true); return authOpen(akSaveLive); }
+  AK.saving = true;
   if (btn) { btn.disabled = true; btn.innerHTML = '<span class="k-spin"></span>儲存中…'; }
+  const uploaded = [];
   try {
     if (KBData.ensureContentSchema) await KBData.ensureContentSchema();
     const images = [];
-    for (const im of d.images) {
+    for (const im of d.images.slice()) {
       if (im.orig) { images.push({ ...im.orig, caption: im.caption.trim(), ...akPlaceField(im) }); continue; }   // already stored: keep the file
+      if (im.uploaded) { images.push({ path: im.uploaded, caption: im.caption.trim(), ...akPlaceField(im) }); continue; }
       const blob = await (await fetch(im.url)).blob();
       const up = await KBData.uploadImage(blob); im.uploaded = up;
+      uploaded.push({ im, path: up });
       images.push({ path: up, caption: im.caption.trim(), ...akPlaceField(im) });
     }
     const body = { ...akPayload(), images };
@@ -222,32 +238,37 @@ async function akSaveLive() {
     toast('已儲存到資料庫');
     cOpen(saved.id, { replace: true });
   } catch (err) {
+    if (err.status) await akDiscardNewUploads(uploaded);
     if (err.status === 401) { toast('登入已失效，請重新登入後再儲存', true); authOpen(akSaveLive); }
     else toast(err.message || '儲存失敗', true);
     if (btn && C.view === 'add') akRefresh();
-  }
+  } finally { AK.saving = false; }
 }
 
 function akSave() {
+  if (AK.saving) return;
   if (akLive()) return akSaveLive();
-  const d = AK.d, now = new Date().toISOString();
-  const editing = AK.editLocal, old = editing ? S.entries.find(e => e.id === AK.editId) : null;
-  const entry = {
-    ...old, ...akPayload(), id: editing ? AK.editId : 'local-' + Date.now().toString(36),
-    images: d.images.map(im => ({ ...(im.orig || {}), path: im.url, src: undefined, caption: im.caption.trim(), ...akPlaceField(im) })),
-    created_at: old?.created_at || now, updated_at: now, _prototype: true
-  };
-  try { editing ? LocalStore.update(entry) : LocalStore.add(entry); } catch (e) { toast('瀏覽器空間不足，無法儲存（請減少圖片）', true); return; }
-  if (editing) S.entries = S.entries.map(e => e.id === entry.id ? entry : e);
-  else S.entries.unshift(entry);
-  akClose(true);
-  toast('已儲存到本機原型（只存在這個瀏覽器）');
-  cOpen(entry.id, { replace: true });
+  AK.saving = true;
+  try {
+    const d = AK.d, now = new Date().toISOString();
+    const editing = AK.editLocal, old = editing ? S.entries.find(e => e.id === AK.editId) : null;
+    const entry = {
+      ...old, ...akPayload(), id: editing ? AK.editId : 'local-' + Date.now().toString(36),
+      images: d.images.map(im => ({ ...(im.orig || {}), path: im.url, src: undefined, caption: im.caption.trim(), ...akPlaceField(im) })),
+      created_at: old?.created_at || now, updated_at: now, _prototype: true
+    };
+    try { editing ? LocalStore.update(entry) : LocalStore.add(entry); } catch (e) { toast('瀏覽器空間不足，無法儲存（請減少圖片）', true); return; }
+    if (editing) S.entries = S.entries.map(e => e.id === entry.id ? entry : e);
+    else S.entries.unshift(entry);
+    akClose(true);
+    toast('已儲存到本機原型（只存在這個瀏覽器）');
+    cOpen(entry.id, { replace: true });
+  } finally { AK.saving = false; }
 }
 
 /* ---------- events ---------- */
 document.addEventListener('input', e => {
-  const t = e.target, f = t.dataset?.f; if (!f || C.view !== 'add' || !AK.d) return;
+  const t = e.target, f = t.dataset?.f; if (AK.saving || !f || C.view !== 'add' || !AK.d) return;
   if (f === 'failed') AK.d.failed[+t.dataset.i] = t.value;
   else if (f === 'imgcap') AK.d.images[+t.dataset.i].caption = t.value;
   else if (f === 'imgplace') AK.d.images[+t.dataset.i].place = t.value;
@@ -256,7 +277,7 @@ document.addEventListener('input', e => {
 });
 document.addEventListener('change', e => {
   const t = e.target;
-  if (C.view !== 'add' || !AK.d) return;
+  if (AK.saving || C.view !== 'add' || !AK.d) return;
   if (t.dataset.f === 'content_type') { akSetType(t.value); }
   else if (t.id === 'ak-root') { AK.d.root = t.value; AK.d.sub = ''; delete AK.err.root; delete AK.err.sub; akRefresh(AK.d.root && akRootNode(AK.d.root)?.kids.length ? '#ak-sub' : '#ak-root'); }
   else if (t.id === 'ak-sub') { AK.d.sub = t.value; delete AK.err.sub; t.removeAttribute('aria-invalid'); t.parentElement.querySelector('.k-err')?.remove(); }
@@ -264,29 +285,30 @@ document.addEventListener('change', e => {
 });
 document.addEventListener('dragover', e => { if (e.target.closest?.('#akDrop')) { e.preventDefault(); e.target.closest('#akDrop').classList.add('over'); } });
 document.addEventListener('dragleave', e => { e.target.closest?.('#akDrop')?.classList.remove('over'); });
-document.addEventListener('drop', e => { if (e.target.closest?.('#akDrop')) { e.preventDefault(); e.target.closest('#akDrop').classList.remove('over'); akAddFiles(e.dataTransfer.files); } });
+document.addEventListener('drop', e => { if (e.target.closest?.('#akDrop')) { e.preventDefault(); e.target.closest('#akDrop').classList.remove('over'); if (!AK.saving) akAddFiles(e.dataTransfer.files); } });
 document.addEventListener('keydown', e => {
-  if (C.view === 'add' && e.key === 'Enter' && e.target.tagName === 'INPUT' && !['file', 'radio'].includes(e.target.type)) { e.preventDefault(); actions.akNext(); }
+  if (C.view === 'add' && !AK.saving && e.key === 'Enter' && e.target.tagName === 'INPUT' && !['file', 'radio'].includes(e.target.type)) { e.preventDefault(); actions.akNext(); }
 });
 
 Object.assign(actions, {
   kAdd: () => {
+    if (AK.saving) return;
     if (KBData.canWrite && KBData.auth && !KBData.auth.session()) return authOpen(akOpen);
     if (AK.editId) { if (akDirty() && !confirm('放棄目前的編輯，改為新增知識？')) return; AK.d = null; AK.editId = null; AK.editLocal = false; AK.step = 1; }
     akOpen();
   },
-  kEdit: b => akEdit(b.dataset.id),
-  akCancel: () => { if (akDirty() && !confirm('放棄目前輸入的內容？')) return; akClose(false); },
-  akPrev: () => { AK.step = Math.max(1, AK.step - 1); AK.err = {}; akRefresh(); },
-  akNext: () => { if (AK.step === 4) return actions.akSave(); if (!akValidate(AK.step)) { akRefresh(); $('#detail [aria-invalid="true"]')?.focus(); return; } AK.step++; AK.err = {}; akRefresh(); },
-  akGo: b => { const s = +b.dataset.s; if (s > AK.step) { for (let i = AK.step; i < s; i++) if (!akValidate(i)) { AK.step = i; akRefresh(); $('#detail [aria-invalid="true"]')?.focus(); return; } } AK.step = s; AK.err = {}; akRefresh(); },
-  akAddFail: () => { AK.d.failed.push(''); akRefresh(); $$('#akForm input[data-f="failed"]').at(-1)?.focus(); },
-  akRmFail: b => { AK.d.failed.splice(+b.dataset.i, 1); if (!AK.d.failed.length) AK.d.failed = ['']; akRefresh(); },
-  akRmImg: b => { AK.d.images.splice(+b.dataset.i, 1); akRefresh(); },
-  akPick: () => $('#akFile')?.click(),
-  akSave: () => { if (!akValidate(1)) { AK.step = 1; akRefresh(); $('#detail [aria-invalid="true"]')?.focus(); return; } if (!akValidate(2)) { AK.step = 2; akRefresh(); $('#detail [aria-invalid="true"]')?.focus(); return; } akSave(); },
+  kEdit: b => { if (AK.saving) return; akEdit(b.dataset.id); },
+  akCancel: () => { if (AK.saving) return; if (akDirty() && !confirm('放棄目前輸入的內容？')) return; akClose(false); },
+  akPrev: () => { if (AK.saving) return; AK.step = Math.max(1, AK.step - 1); AK.err = {}; akRefresh(); },
+  akNext: () => { if (AK.saving) return; if (AK.step === 4) return actions.akSave(); if (!akValidate(AK.step)) { akRefresh(); $('#detail [aria-invalid="true"]')?.focus(); return; } AK.step++; AK.err = {}; akRefresh(); },
+  akGo: b => { if (AK.saving) return; const s = +b.dataset.s; if (s > AK.step) { for (let i = AK.step; i < s; i++) if (!akValidate(i)) { AK.step = i; akRefresh(); $('#detail [aria-invalid="true"]')?.focus(); return; } } AK.step = s; AK.err = {}; akRefresh(); },
+  akAddFail: () => { if (AK.saving) return; AK.d.failed.push(''); akRefresh(); $$('#akForm input[data-f="failed"]').at(-1)?.focus(); },
+  akRmFail: b => { if (AK.saving) return; AK.d.failed.splice(+b.dataset.i, 1); if (!AK.d.failed.length) AK.d.failed = ['']; akRefresh(); },
+  akRmImg: b => { if (AK.saving) return; AK.d.images.splice(+b.dataset.i, 1); akRefresh(); },
+  akPick: () => { if (AK.saving) return; $('#akFile')?.click(); },
+  akSave: () => { if (AK.saving) return; if (!akValidate(1)) { AK.step = 1; akRefresh(); $('#detail [aria-invalid="true"]')?.focus(); return; } if (!akValidate(2)) { AK.step = 2; akRefresh(); $('#detail [aria-invalid="true"]')?.focus(); return; } akSave(); },
   akClear: () => {
-    if (akLive()) return;
+    if (AK.saving || akLive()) return;
     const n = LocalStore.count(); if (!n || !confirm(`清除這個瀏覽器中 ${n} 筆本機原型資料？`)) return;
     LocalStore.clear(); S.entries = S.entries.filter(e => !e._prototype); akRefresh(); renderSide(); toast('已清除本機原型資料');
   }

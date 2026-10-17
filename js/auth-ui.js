@@ -103,6 +103,7 @@ Object.assign(actions, {
     }
   },
   authOut: async () => {
+    if (AK.saving) return;
     if (C.view === 'add' && akDirty() && !confirm('登出會放棄目前輸入的內容，確定？')) return;
     await KBData.auth.signOut();
     if (C.view === 'add') akClose(false);

@@ -1,17 +1,16 @@
 /* Supabase data provider.
 
-   READ  (anonymous): `software_categories` and `entries` through the PostgREST API; stored images through short-lived
-         signed URLs from the private `kb-images` bucket. No SDK is needed.
-   WRITE (signed-in user only): insert one row into `entries`, upload an image into the user's OWN folder of
-         `kb-images`, and edit or delete one of the user's OWN entries (and its images).
+   READ and WRITE run only with the signed-in owner's access token. Anonymous requests are not sent.
+   The database allows that one owner to read, create, edit, and delete entries and kb-images.
+   Stored images use short-lived signed URLs. No SDK is needed.
 
    Safety rules enforced here:
    - Only the browser-safe PUBLISHABLE key (sb_publishable_…) is accepted. A secret key, a service_role key or
      a database password must never be placed in this repository.
    - Every request goes through guardedFetch(), which only lets through the allow-list in RULES below, to the
      configured project. Anything else (PATCH, DELETE, other tables, other paths) throws before it leaves the browser.
-   - Reads always run as the anonymous role (apikey header only). The signed-in access token is attached only to the
-     write requests and to sign-out. Row Level Security in the database is the real gate; this is a second lock.
+   - Reads, image signing, and writes send the signed-in access token. Row Level Security is the real gate;
+     this allow-list only stops the page from calling anything else.
    - The V2 production and V3 development projects are blocked, so V4 cannot be pointed at them by accident.
 
    The login session (access / refresh token) is kept in localStorage under `cae-kb-v4-auth`.
@@ -37,8 +36,8 @@ function createSupabaseProvider(cfg) {
   /* ---------- the allow-list: the ONLY requests this provider can make ---------- */
   const RULES = [
     { method: 'GET', path: /^\/rest\/v1\/entries$/, query: new RegExp(`^select=id&user_id=eq\\.${UUID}$`), auth: 'user' },   // ids of my own entries
-    { method: 'GET', path: /^\/rest\/v1\/(entries|software_categories)$/ },
-    { method: 'POST', path: new RegExp(`^/storage/v1/object/sign/${BUCKET}$`) },
+    { method: 'GET', path: /^\/rest\/v1\/(entries|software_categories)$/, auth: 'user' },
+    { method: 'POST', path: new RegExp(`^/storage/v1/object/sign/${BUCKET}$`), auth: 'user' },
     { method: 'POST', path: /^\/auth\/v1\/token$/, query: /^grant_type=(password|refresh_token)$/, auth: 'none' },
     { method: 'POST', path: /^\/auth\/v1\/logout$/, auth: 'user' },
     { method: 'POST', path: /^\/rest\/v1\/entries$/, auth: 'user' },
@@ -132,7 +131,7 @@ function createSupabaseProvider(cfg) {
     projectRef: m ? m[1] : null,
     canWrite: !problem,
     ensureContentSchema,
-    canDelete: id => !!session && mine.has(id),
+    canDelete: () => !!session,
     async refreshMine() {
       if (!session) { mine = new Set(); return mine; }
       const res = await guardedFetch(`${origin}/rest/v1/entries?select=id&user_id=eq.${session.user.id}`);
@@ -229,7 +228,20 @@ function createSupabaseProvider(cfg) {
       }
       return { entry: normalizeEntry(saved[0]), imagesFailed };
     },
-    /* Deletes one of the user's own entries, then its images. Resolves { imagesFailed }. */
+    /* Deletes storage objects uploaded by a save whose row write then failed. Returns the paths still present. */
+    async discardUploads(paths) {
+      if (!session) throw Object.assign(new Error('請先登入'), { status: 401 });
+      const failed = [];
+      for (const p of paths || []) {
+        if (!p || !p.startsWith(session.user.id + '/')) { failed.push(p); continue; }
+        try {
+          const r = await guardedFetch(`${origin}/storage/v1/object/${BUCKET}/${p}`, { method: 'DELETE' });
+          if (!r.ok) failed.push(p);
+        } catch (e) { failed.push(p); }
+      }
+      return failed;
+    },
+    /* Deletes one of the owner's entries, then its images. Resolves { imagesFailed }. */
     async deleteEntry(entry) {
       if (!session) throw Object.assign(new Error('請先登入'), { status: 401 });
       const res = await guardedFetch(`${origin}/rest/v1/entries?id=eq.${entry.id}`, { method: 'DELETE', headers: { Prefer: 'return=representation' } });

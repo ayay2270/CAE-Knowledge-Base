@@ -1,16 +1,17 @@
--- CAE Knowledge Base V4 — Supabase schema, phase 1 (public READ-ONLY site)
+-- CAE Knowledge Base V4 — tables, triggers, and the private image bucket.
 --
 -- HOW TO USE
 --   1. Create a NEW Supabase project for V4 (do not use the V2 production or V3 development project).
---   2. Open SQL Editor, paste this whole file and Run. Re-running is safe.
---   3. Then run supabase/seed.sql to load the sample data (optional but recommended for the first check).
+--   2. Open SQL Editor, paste this whole file and Run. Re-running is safe: it does not grant or revoke access.
+--   3. Then run supabase/seed.sql to load the sample data (optional).
+--   4. Run supabase/privileges.sql last. That file is the only source of truth for policies and grants.
 --
--- This phase only lets anonymous visitors READ. No insert / update / delete policy exists yet, so nobody can
--- write through the API. Write access, login and image upload are added in a later phase.
+-- This file enables Row Level Security and then stops. With no policies, nobody can read or write through the API
+-- until privileges.sql is applied.
 -- Based on the V2/V3 structure (same columns), with these deliberate differences:
 --   * entries.user_id is nullable (seed data has no author yet) and uses ON DELETE SET NULL
 --   * software_categories has a `description` column
---   * no write policies, no increment_views()
+--   * no increment_views()
 
 -- 1. Software categories (software -> sub-software). `key` is a stable internal code, `label` is what people see.
 create table if not exists public.software_categories (
@@ -69,30 +70,11 @@ drop trigger if exists software_categories_touch on public.software_categories;
 create trigger software_categories_touch before update on public.software_categories
 for each row execute function public.touch_updated_at();
 
--- 4. Row Level Security: public read only
+-- 4. Enable RLS only. Policies and grants are applied by supabase/privileges.sql.
 alter table public.entries enable row level security;
 alter table public.software_categories enable row level security;
 
-drop policy if exists "entries_public_read" on public.entries;
-create policy "entries_public_read" on public.entries
-  for select to anon, authenticated using (true);
-
-drop policy if exists "software_categories_public_read" on public.software_categories;
-create policy "software_categories_public_read" on public.software_categories
-  for select to anon, authenticated using (is_active = true);
-
--- Table privileges: read only (belt and braces on top of RLS)
-revoke all on public.entries from anon, authenticated;
-revoke all on public.software_categories from anon, authenticated;
-grant select on public.entries to anon, authenticated;
-grant select on public.software_categories to anon, authenticated;
-
--- 5. Image storage: PRIVATE bucket, readable (via signed URLs) by the public site, no upload policy yet
+-- 5. Private image bucket. Who can read or write it is also defined in supabase/privileges.sql.
 insert into storage.buckets (id, name, public)
 values ('kb-images', 'kb-images', false)
 on conflict (id) do nothing;
-
-drop policy if exists "kb_images_public_read" on storage.objects;
-create policy "kb_images_public_read" on storage.objects
-  for select to anon, authenticated
-  using (bucket_id = 'kb-images');

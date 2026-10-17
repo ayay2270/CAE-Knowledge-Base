@@ -1,5 +1,5 @@
--- Phase 5: additive content types. REVIEW ONLY; this file is not automatically executed.
--- Prerequisites: schema.sql, phases 2 through 4. Apply separately after approval.
+-- Phase 5: additive content types. Apply separately when those columns should exist.
+-- Prerequisites: schema.sql. Row access is defined only in supabase/privileges.sql.
 -- No row updates, renames, table recreation, column removal or policy changes.
 -- Existing rows keep content_type NULL and are interpreted as troubleshooting by the client.
 begin;
@@ -13,8 +13,10 @@ alter table public.entries
   add column if not exists key_rules text not null default '',
   add column if not exists verification text not null default '';
 
--- Phase 4 uses column-level UPDATE grants: extend only to the six new content columns.
--- Existing author-only RLS and user_id/id/created_at protections continue to apply.
+-- Column-level INSERT and UPDATE for the six new fields only.
+-- privileges.sql grants the same columns when they already exist. Neither file changes row policies.
+grant insert (content_type, summary, technical_explanation, procedure, key_rules, verification)
+  on public.entries to authenticated;
 grant update (content_type, summary, technical_explanation, procedure, key_rules, verification)
   on public.entries to authenticated;
 

@@ -17,11 +17,16 @@ authoring and reading sections, with engineering figures linked to sections or n
 
 ## Status
 
-- **Two data sources.** By default V4 reads the local sample data (`data/knowledge-base.json`). When `js/config.js` holds a
-  Supabase Project URL and **publishable** key, V4 reads categories, entries and images from Supabase instead
-  (see "Supabase" below). `?source=local` forces the local data.
-- **Reading needs no login.** Visitors only read. Writing needs a signed-in account (see "Phase 2" below). The site never contains a secret key, service_role key or database password.
-- **新增知識** — with Supabase configured and a signed-in user it saves to the database (insert only). Without Supabase it stays a local prototype: The four-step form (基本資訊 → 內容填寫 → 附圖與其他 → 確認儲存) produces
+- **Two data sources.** When `js/config.js` holds a Supabase Project URL and **publishable** key, V4 uses that project.
+  `?source=local` forces the local sample data. Supabase mode shows Supabase entries only; LocalStorage prototypes stay
+  out of that list and are not deleted.
+- **Supabase is private to one owner.** Logged out, the page does not load entries or images. Only the account named in
+  `supabase/privileges.sql` can read, create, edit, and delete. The site never contains a secret key, service_role key or database password.
+- **Static files are public prototype material.** `data/knowledge-base.json`, `assets/`, and `?source=local` are served
+  with the static site. Never put private CAE, company, or customer content there. Private content belongs only in the
+  authenticated Supabase database and the `kb-images` bucket.
+- **新增知識** — with Supabase configured and the owner signed in, it saves to the database. Without Supabase, or with
+  `?source=local`, it stays a local prototype: The four-step form (基本資訊 → 內容填寫 → 附圖與其他 → 確認儲存) produces
   an entry in the normal knowledge schema, but "save" only writes to this browser's LocalStorage
   (`js/local-store.js`). In prototype mode nothing is uploaded; entries are marked **本機原型**.
 
@@ -58,7 +63,7 @@ css/styles.css        styles
 js/config.js          Supabase Project URL + publishable key (empty = local data)
 js/data-provider.js   picks the data source; the UI only talks to KBData
 js/provider-local.js  local sample data (JSON)
-js/provider-supabase.js  Supabase provider (anonymous reads, signed-in insert, strict request allow-list)
+js/provider-supabase.js  Supabase provider (owner session for reads and writes, strict request allow-list)
 js/auth-ui.js         login button + dialog
 js/core.js            state, software-category helpers, text / markdown helpers
 js/figures.js         figure model, article page, figure gallery, lightbox
@@ -96,17 +101,33 @@ UI  →  KBData.load() / prepareImages() / imageUrl()  →  Supabase (if configu
 
 Solution steps are written as a numbered list (`1.`, `2.`, …); figures with `step: n` attach to step *n*.
 
-## Supabase (reading)
+## Supabase
 
 1. Create a **new** Supabase project for V4. (The V2 production and V3 development projects are blocked in
    `js/provider-supabase.js` so V4 cannot be pointed at them by accident.)
 2. In **SQL Editor** run `supabase/schema.sql`, then `supabase/seed.sql` (sample data). Both are safe to re-run.
-   They create the tables, a private `kb-images` bucket and **read-only** public policies — there is no
-   insert / update / delete policy yet, so nobody can write through the API.
-3. Copy the **Project URL** and the **publishable key** (`sb_publishable_…`, Project Settings → API Keys) into
+   `schema.sql` creates the tables and the private `kb-images` bucket. It does not grant access, and re-running it
+   does not change privileges.
+3. Run `supabase/phase5-content-types.sql` to add the knowledge / troubleshooting columns. Safe to re-run. Reading
+   still works before this migration; saving the new fields does not.
+4. Run `supabase/privileges.sql` **last**. It is the only source of truth for policies and grants: one owner can
+   read, create, edit, and delete; anonymous users and every other account cannot. Safe to re-run.
+5. Copy the **Project URL** and the **publishable key** (`sb_publishable_…`, Project Settings → API Keys) into
    `js/config.js`. The publishable key is public by design. **Never** put a secret key, a `service_role` key or the
    database password in this repository — the provider refuses anything that is not a publishable key.
-4. Open the site. `document.documentElement.dataset.source` is `supabase` when the connection is used.
+6. **Authentication → Sign In / Providers → Email**: switch **Allow new users to sign up** OFF. The owner user must
+   already exist, and its User UID must be the id in `kb_is_owner()` inside `privileges.sql`.
+7. Open the site and click **登入**. `document.documentElement.dataset.source` is `supabase` when that connection is used.
+
+Apply the database lock before deploying this frontend. A temporary empty or locked previous frontend is acceptable.
+
+1. Run `supabase/privileges.sql`.
+2. Verify anonymous access is denied: with only the publishable key, entries and `kb-images` are not readable.
+3. Deploy this frontend.
+4. Log in as the owner and verify read, create, edit, delete, and opening or uploading an image.
+
+`supabase/phase2-auth-write.sql`, `phase3-delete-own.sql`, and `phase4-edit-own.sql` are retired and intentionally
+empty, so re-running them cannot restore public or per-author access.
 
 `supabase/seed.sql` is generated from the local sample data: `npm run seed:build`.
 
@@ -117,37 +138,13 @@ Solution steps are written as a numbered list (`1.`, `2.`, …); figures with `s
   short-lived signed URLs) or `{ "src": "<static url>" }`, and may add `caption`, `title`, `section`, `step`,
   `order`, `key` so a figure attaches to a section / step exactly like the local sample.
 
-## Phase 2 — login and saving from 新增知識
+The signed-in owner can add, edit, and delete every entry, including sample rows that have no `user_id`. Images upload
+into that user's folder of `kb-images`. A failed save reuses an upload that already succeeded, and deletes new uploads
+from that attempt only when the row write returns an HTTP error.
 
-Anonymous visitors still only read. A signed-in user can **add** entries and upload images. Delete is Phase 3, edit is Phase 4.
-
-1. In **SQL Editor** run `supabase/phase2-auth-write.sql` (safe to re-run). It grants `insert` on `entries` to the
-   `authenticated` role only with `user_id = auth.uid()`, and lets a signed-in user upload into **their own folder**
-   (`<user id>/…`) of the private `kb-images` bucket.
-2. **Authentication → Sign In / Providers → Email**: switch **Allow new users to sign up** OFF (public sign-ups closed).
-3. **Authentication → Users → Add user → Create new user**: create your account with email + password and tick
-   *Auto Confirm User*. (Passwords are typed only into Supabase, never into this repository.)
-4. Open the site, click **登入**, then **新增知識** → fill the form → **儲存到資料庫**.
-
-## Phase 3 — delete your own entries
-
-Run `supabase/phase3-delete-own.sql` in the SQL Editor (safe to re-run). A signed-in user then sees a trash button on
-the entries **they created**; it deletes the entry and its images (after a confirmation). The database allows delete only
-where `entries.user_id = auth.uid()` and only for files in the user's own `kb-images` folder, so the sample entries
-(no author) and other people's entries cannot be deleted from the site. 
-
-## Phase 4 — edit your own entries
-
-Run `supabase/phase4-edit-own.sql` in the SQL Editor (safe to re-run). On an entry you created, a pencil button opens the
-same four-step form filled with the entry; you can change the text, tags, category, swap / remove / add images and move
-images between sections and steps. The database allows update only where `entries.user_id = auth.uid()` and only for the
-content columns (title, category, tags, symptom, root_cause, solution, failed_attempts, notes, reference_source, images),
-so the author, id, created_at and views cannot be changed, and sample / other people's entries cannot be edited.
-
-How it is locked down: the browser only ever sends the requests listed in `RULES` in `js/provider-supabase.js`
-(anonymous reads, sign-in/refresh/logout, one `POST` to `entries`, one `POST` per image into the user's own folder);
-anything else throws before leaving the browser. Row Level Security in the database is the real gate. The login session
-is kept in this browser's localStorage (`cae-kb-v4-auth`).
+How it is locked down: `supabase/privileges.sql` is the database gate. The browser only sends the requests listed in
+`RULES` in `js/provider-supabase.js` (owner reads, image signing, sign-in/refresh/logout, entry writes, and image
+upload/delete in the owner's folder). The login session is kept in this browser's localStorage (`cae-kb-v4-auth`).
 
 ## Software icons
 
@@ -174,10 +171,10 @@ Missing / NULL `content_type` is interpreted as troubleshooting; existing JSON a
 - Preview and reading share section / step rendering. Empty optional sections are omitted unless they contain images.
 - Search covers both content types' body fields. Local prototype articles support add, reload and edit.
 
-`supabase/phase5-content-types.sql` is an **additive migration file for separate review**. It adds six columns and
-extends Phase 4's column-level UPDATE grants without changing author-only RLS. It has not been executed as part
-of this local change. A database needs this migration before saving the new payload; legacy reading also works
-before migration through a read-only column fallback. Saving checks column availability before image upload; a failed check retains the current form, and retry checks again after migration. No deployment or configuration changes are included.
+`supabase/phase5-content-types.sql` adds six columns and their column-level UPDATE grants. It does not change row
+policies. A database needs this migration before saving the new payload; legacy reading also works before migration
+through a read-only column fallback. Saving checks column availability before image upload; a failed check retains
+the current form, and retry checks again after migration.
 
 Validation:
 
