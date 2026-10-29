@@ -40,3 +40,7 @@
 `http://localhost:8080/?source=local#ocp-rail-spcforce-stress-limit-20261029`
 
 正式 GitHub Pages 目前從 main 發佈；上述 local 預覽內容不代表正式網站或預覽分支已更新。
+
+## 知識線拆分整合補充
+
+本紀錄保留 SPCFORCE 專題原本的審核範圍。後續整合另增加 8 條知識線，OCP Rail 合計 11 個條目（含原索引與排錯紀錄），公開範例合計 21 筆。保留原 6 張圖、本專題 4 張圖，另新增 5 張 UZ／SPCD 操作示意。請從 [OCP Rail 索引](ocp-rail-force-spcd-test-to-fail.md) 與 [28 步 HyperView 操作教學](ocp-rail-hyperview-node-uz-force-to-spcd.md) 開始；所有工程反力仍待原模型驗證。

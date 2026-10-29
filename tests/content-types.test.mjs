@@ -14,9 +14,12 @@ test('SPCFORCE is independently searchable, cross-linked and has valid step figu
  for(const q of ['SPCFORCE','反力','60MPa','NLOUT','50kgf','Force→SPCD']){
   run(`S.q=${JSON.stringify(q)}`);assert.ok(run('visible().some(e=>e.id==='+JSON.stringify(id)+')'),q);
  }
- for(const related of db.entries.filter(e=>e.id.startsWith('ocp-rail-')&&e.id!==id)){
-  assert.ok(run(`cRelated(S.entries.find(e=>e.id===${JSON.stringify(related.id)})).some(e=>e.id===${JSON.stringify(id)})`),'incoming related link');
-  assert.ok(run(`cRelated(S.entries.find(e=>e.id===${JSON.stringify(id)})).some(e=>e.id===${JSON.stringify(related.id)})`),'outgoing related link');
+ for(const relatedId of ['ocp-rail-force-spcd-test-to-fail-20261029','ocp-rail-spcd-123456-mismatch-20261029']){
+  const related=db.entries.find(e=>e.id===relatedId);
+  run('globalThis.related='+JSON.stringify(related));
+  assert.ok(run('cSectionsHtml(cArticleSections(related,cFigs(related)))').includes('href="#'+id+'"'),'explicit incoming article link');
+  run('globalThis.subject='+JSON.stringify(e));
+  assert.ok(run('cSectionsHtml(cArticleSections(subject,cFigs(subject)))').includes('href="#'+relatedId+'"'),'explicit outgoing article link');
  }
  const steps=e.procedure.split('\n').map(s=>Number(s.match(/^(\d+)\./)?.[1]));
  assert.equal(e.figures.length,4);

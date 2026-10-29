@@ -7,7 +7,7 @@ const require=createRequire(import.meta.url);
 const {chromium}=require(process.env.PLAYWRIGHT_MODULE || 'playwright');
 const out=process.env.REVIEW_DIR || '.local-review/spcforce';
 await fs.mkdir(out,{recursive:true});
-const server=spawn(process.execPath,['scripts/serve.mjs'],{env:{...process.env,PORT:'8098'},stdio:'pipe',windowsHide:true});
+const server=spawn(process.execPath,['scripts/serve.mjs'],{env:{...process.env,PORT:'8099'},stdio:'pipe',windowsHide:true});
 await new Promise((resolve,reject)=>{server.stdout.once('data',resolve);server.once('error',reject);});
 let browser;
 try{
@@ -16,7 +16,7 @@ try{
  await context.route(/https:\/\/[^/]+\.supabase\.co\//,()=>{throw new Error('Unexpected Supabase request');});
  const page=await context.newPage(),errors=[];
  page.on('pageerror',e=>errors.push(e.message));
- const base='http://127.0.0.1:8098/',id='ocp-rail-spcforce-stress-limit-20261029';
+ const base='http://127.0.0.1:8099/',id='ocp-rail-spcforce-stress-limit-20261029';
  const old=['ocp-rail-force-spcd-test-to-fail-20261029','ocp-rail-spcd-123456-mismatch-20261029'];
  for(const q of ['SPCFORCE','反力','60MPa','NLOUT','50kgf','Force→SPCD']){
   await page.goto(base+'?source=local#search/'+encodeURIComponent(q));
@@ -25,9 +25,9 @@ try{
  console.log('PASS six search queries find the independent tutorial');
  for(const previous of old){
   await page.goto(base+'?source=local#'+previous);
-  await page.locator(`.c-related [data-id="${id}"]`).click();
+  await page.locator(`.c-article a[href="#${id}"]`).first().click();
   await page.waitForFunction(id=>S.sel===id,id);
-  await page.locator(`.c-related [data-id="${previous}"]`).waitFor();
+  await page.locator(`.c-article a[href="#${previous}"]`).first().waitFor();
   await page.goBack();await page.waitForFunction(id=>S.sel===id,previous);
  }
  console.log('PASS both Force→SPCD articles link to SPCFORCE and Back restores the article');

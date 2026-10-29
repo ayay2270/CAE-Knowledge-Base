@@ -109,3 +109,9 @@ HyperView Quick Query：https://www.2021.help.altair.com/2021/hwdesktop/hwx/topi
 > 表格不是實際結果；非單調歷程必須按載入順序找首次超限，不能只看最終幀或反力最大幀。
 
 [Altair MAT1：允許應力與 FoS](https://2025.help.altair.com/2025.1/hwsolvers/altair_help/topics/solvers/os/mat1_bulk_r.htm)
+
+## 知識線互連與適用前提
+
+【延伸閱讀】[OCP Rail 知識線索引](ocp-rail-force-spcd-test-to-fail.md)、[HyperView 指定 Node UZ 完整教學](ocp-rail-hyperview-node-uz-force-to-spcd.md)、[SPCFORCE 等效與平衡](ocp-rail-spcforce-equivalence.md)、[SPC 123456 排錯](ocp-rail-spcd-123456-mismatch.md)。
+
+【適用前提補充】RBE3 REFGRID 上 SPC 以 NLSTAT + LGDISP 支援為前提；量測 Global Z 後，仍須確認有效 GRID CD 的 DOF 3 方向一致。

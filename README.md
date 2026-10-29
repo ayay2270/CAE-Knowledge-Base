@@ -126,10 +126,17 @@ npm start
 
 ## 測試
 
+OCP Rail 的原文章 ID 保留為[知識線索引](docs/knowledge/ocp-rail-force-spcd-test-to-fail.md)，並拆為獨立可搜尋的條目。其中 [HyperView 指定 RBE3 Node UZ → Force／SPCD 圖文教學](docs/knowledge/ocp-rail-hyperview-node-uz-force-to-spcd.md)涵蓋量測、SPC 3、SPCD、Load Step 與 SPCFORCE；[反力驗證](docs/knowledge/ocp-rail-spcforce-equivalence.md)另有完整的符號與平衡檢查。
+
+以 `?source=local#ocp-rail-force-spcd-test-to-fail-20261029` 開啟索引，或搜尋 `HyperView UZ`、`SPCFORCE 平衡`、`press-fit`、`Tetra10 收斂`。本文／圖面均為公開範例與重繪示意，實際反力仍待核實；不會自動匯入正式私人資料庫。
+
+`npm test` 包含 JSON/schema、搜尋、知識條目互連、圖片路徑與步驟位置、Markdown 引用及安全文章連結檢查。
+
 ```bash
 npm test
 npm run test:navigation
 npm run test:browser
+npm run test:ocp-browser
 npm run test:spcforce
 ```
 
@@ -137,7 +144,7 @@ npm run test:spcforce
 
 若 `test:browser` 的預設 8096 連接埠已占用，可用 `TEST_PORT` 指定另一個本機連接埠。
 
-OCP Rail 的 [SPCFORCE 獨立教學](docs/knowledge/ocp-rail-spcforce-stress-limit.md) 可在此 review checkout 以 `?source=local#ocp-rail-spcforce-stress-limit-20261029` 審閱；亦可從兩篇 Force→SPCD 文章下方的「相關知識」開啟。索引、schema 與驗證範圍見[審核記錄](docs/knowledge/ocp-rail-spcforce-review-notes.md)。
+保留既有 [SPCFORCE／60 MPa 門檻教學](docs/knowledge/ocp-rail-spcforce-stress-limit.md)及其[審核記錄](docs/knowledge/ocp-rail-spcforce-review-notes.md)，並納入知識線索引與明確互連。
 
 瀏覽器測試用本機資料，並攔截 Supabase 請求。它不會對任何 Supabase 專案寫入。
 

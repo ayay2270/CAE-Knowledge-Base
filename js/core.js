@@ -102,7 +102,10 @@ function emptyHtml(icon, title, body, action = '') {
   return `<div class="empty"><i class="ti ${icon}"></i><b>${title}</b>${body}${action}</div>`;
 }
 function inline(s) {
-  return s.replace(/`([^`]+)`/g, '<code>$1</code>').replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+  // Article links use the existing hash router; all text has already been escaped.
+  // Keep the URL grammar narrow so authored content cannot introduce unsafe schemes.
+  return s.replace(/`([^`]+)`/g, '<code>$1</code>').replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+    .replace(/\[([^\]\n]+)\]\((#[a-zA-Z0-9][a-zA-Z0-9-]*)\)/g, '<a href="$2">$1</a>');
 }
 function md(src) {
   if (!src || !src.trim()) return '';
