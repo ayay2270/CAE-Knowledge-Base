@@ -130,9 +130,14 @@ npm start
 npm test
 npm run test:navigation
 npm run test:browser
+npm run test:spcforce
 ```
 
 `test:browser` 需要 Playwright 與 Chrome。可用 `BROWSER_CHANNEL` 換瀏覽器。若 Playwright 不在預設路徑，把 `PLAYWRIGHT_MODULE` 指到它的 package 目錄。`REVIEW_DIR` 是截圖與報告目錄，預設 `.local-review/`，不要 commit。
+
+若 `test:browser` 的預設 8096 連接埠已占用，可用 `TEST_PORT` 指定另一個本機連接埠。
+
+OCP Rail 的 [SPCFORCE 獨立教學](docs/knowledge/ocp-rail-spcforce-stress-limit.md) 可在此 review checkout 以 `?source=local#ocp-rail-spcforce-stress-limit-20261029` 審閱；亦可從兩篇 Force→SPCD 文章下方的「相關知識」開啟。索引、schema 與驗證範圍見[審核記錄](docs/knowledge/ocp-rail-spcforce-review-notes.md)。
 
 瀏覽器測試用本機資料，並攔截 Supabase 請求。它不會對任何 Supabase 專案寫入。
 

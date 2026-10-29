@@ -9,7 +9,8 @@
     "seed:build": "node scripts/build-seed.mjs",
     "test": "node --test tests/content-types.test.mjs",
     "test:browser": "node tests/browser-content-types.mjs",
-    "test:navigation": "node tests/browser-navigation.mjs"
+    "test:navigation": "node tests/browser-navigation.mjs",
+    "test:spcforce": "node tests/browser-spcforce.mjs"
   },
   "engines": {
     "node": ">=18"

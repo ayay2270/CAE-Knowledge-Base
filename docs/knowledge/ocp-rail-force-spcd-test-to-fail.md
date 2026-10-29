@@ -104,3 +104,8 @@ Tetra10 可改善部分彎曲及孔邊應力精度，但需核對中點節點、
 ---
 
 **知識庫導覽：**此專案的正式文章和圖片由 Supabase 依使用者登入存取；這次 GitHub 分支新增的是**公開本機範例資料**，可在合併後透過 `?source=local` 測試。它不會自動寫入正式 Supabase。
+
+
+## 九、SPCFORCE 獨立教學：從等效驗證到應力門檻載荷
+
+[SPCFORCE 反力輸出、HyperView 同增量查詢與 60 MPa Stress-limit Load](ocp-rail-spcforce-stress-limit.md) 包含 SPCFORCE(H3D) = ALL、NLOUT 中間增量、50 kgf ≈ 490 N 的反力驗證、首次超限幀與 kgf 換算。既有位移場對照不代表反力驗證完成；Time 不是 SPCD 反力比例，門檻載荷也不代表真正 Crack Load。網站文章下方的「相關知識」提供對應導覽。

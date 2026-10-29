@@ -44,6 +44,86 @@
   ],
   "entries": [
     {
+      "id": "ocp-rail-spcforce-stress-limit-20261029",
+      "category": "optistruct",
+      "content_type": "knowledge",
+      "title": "SPCFORCE 反力教學｜OCP Rail 的 Force→SPCD 等效驗證與 60 MPa Stress-limit Load",
+      "tags": [
+        "OCP-Rail",
+        "OptiStruct",
+        "HyperView",
+        "NLSTAT",
+        "LGDISP",
+        "SPC",
+        "SPCD",
+        "SPCFORCE",
+        "NLOUT",
+        "反力",
+        "reaction-force",
+        "50kgf",
+        "490N",
+        "60MPa",
+        "stress-limit",
+        "Force→SPCD",
+        "displacement-control"
+      ],
+      "summary": "以 OptiStruct NLSTAT + LGDISP 的 SPCFORCE(H3D) = ALL 輸出約束反力，先確認 Force→SPCD 的 50 kgf（約 490 N）等效性，再找 Rail 首次達到指定 60 MPa 門檻的已收斂輸出增量，讀取同一增量的驅動反力並換算 kgf。\n本篇是操作方法，未重新求解 OCP Rail，也未取得新的 H3D 反力；實際門檻載荷仍待模型驗證。圖均為示意圖。",
+      "technical_explanation": "【SPCFORCE 是什麼】SPCFORCE 是單點約束的反力／反力矩結果，不是施加的 FORCE 卡片，也不是元素 FORCE 或 MPCFORCE。SPCD 在受約束的指定自由度施加非零位移；該驅動自由度的反力可用來建立載荷–位移曲線。參考節點若屬 RBE 連接，仍應核對相依自由度、反力傳遞與整體平衡。\n\n【本案例基準】既有 Force 模型輸入 FZ = −490 N；左孔 RBE3 Reference Node 26088 的 UZ = −1.101 mm。SPCD 版對應同一節點、同一 Global Z、左孔只 SPC 3，右孔沿用原約束。2.948 vs 2.947 mm 的最大位移接近只支持位移場對照，尚未證明驅動反力等於 490 N。節點 ID 與位移僅適用原案例。\n\n【工程判定】60 MPa 是本教學採用的專案應力門檻示例，NC50RT 在實際溫度、含水率、成型方向與應變率下的允許值仍須由材料資料或試驗核准。若專案規定 Von Mises ≥ 60 MPa，依該準則報告；若評估拉伸型脆性破壞，需另評估最大主拉應力／主應變及相應拉伸門檻，不可把兩種準則的數值直接互換。\n\n【彈性模型的用途】若目的僅為找指定應力門檻，可在適用範圍內保留 MAT1 彈性材料並逐步增加 SPCD；LGDISP 與接觸仍可能使整體反應非線性。MAT1 的 ST 允許拉應力不會自動生成裂紋；未校準損傷、斷裂與試驗關聯的模型不能給出真正 Crack Load。",
+      "procedure": "1. 建立可對照的 SPCD 模型：依 Force→SPCD 教學量測原 Force 模型驅動 Node 的 UZ，再設定該 Node／DOF 的 SPCD，移除原驅動 FORCE，保留相同材料、網格、接觸、治具自由度與載入歷程。先用 −1.101 mm 的案例基準做等效驗證，再另外增加行程找門檻。\n2. 在 HyperMesh 的 Global Output Request 或目標 Load Step Output Request 加入 SPCFORCE，Format 選 H3D，Option 選 ALL；同步輸出 DISPLACEMENT(H3D) = ALL 與 STRESS(H3D) = ALL。保留 NLSTAT 與既有 LGDISP 設定；匯出 .fem 檢查真的含 SPCFORCE(H3D) = ALL，且沒有後面的衝突卡片覆蓋。這只是結果輸出，不會施加力或啟用斷裂。\n3. 確認該非線性 Subcase 有選用 NLOUT = 9001，並有對應 Bulk Data，例如 NLOUT,9001,FREQ,1,SVNONCNV,NO（9001 為可替換示例 ID）。FREQ=1 用來保留每個收斂載荷增量的中間結果；若沿用 NINT，輸出可能跳過已求解增量。NLOUT 不會縮小求解增量；門檻附近仍須調整非線性增量控制。重新求解並檢查 .out／收斂紀錄，確認 H3D 同時有位移、應力與 SPC Forces 的相同增量，不能只存最後一幀。\n4. 在 HyperView 載入同一次求解的模型與主 .h3d，選正確 NLSTAT Subcase 與已收斂 Frame，記錄 Subcase、Frame／Time 與結果檔名。先套用 Displacement → Z、Resolved in = Global，使用 Measure → Nodal Contour（或 Query → Nodes，依版本名稱）按 ID 查驅動 Node 26088；Visibility Filter 設 All 或顯示該 Node，核對該增量實際 UZ。\n5. 保持同一 Subcase／Frame，Contour Result type 改為 SPC Forces（可能顯示 SPC Force），Component 選 Z、Resolved in = Global，Apply 後以 Nodal Contour／Node Query 讀同一驅動 Node 的帶正負號 RZ，記錄 N。若沒有此結果類型、數值 N/A 或意外為零，先查輸出卡、檔案版本、節點／DOF、SPC 選集與 RBE 相依關係；不要把 N/A 當 0，也不要改讀全模型最大 Magnitude。\n6. 對 50 kgf 基準，先核對實際驅動 UZ = −1.101 mm 的增量，將左側驅動 RZ 與右側支承反力用同一座標／分量檢查平衡；|RZ| 應與原模型輸入約 490 N 比較並報告差異，再檢查位移場、應力與接觸狀態。通過此檢查後才在加大行程的模型依載入順序逐幀檢查 Rail 應力，找第一個已收斂且評估應力 ≥ 60 MPa 的已儲存增量 i，並保留前一個低於門檻的增量 i−1。\n7. 鎖定門檻增量 i，記錄應力種類、元素／位置、Centroid 或 Corner、Averaging、Time、驅動 UZ，再切回 SPC Forces → Global Z 讀同一增量的 RZ。單一驅動點的門檻載荷 F_limit(kgf) = |RZ_i| / 9.80665；多個驅動點則先對同一治具的帶符號力做分量合計／投影，再取絕對值。不要把左右兩端或 RBE 中心與孔壁傳力重複相加。\n8. 在增量 i−1 到 i 附近加密求解步長並重跑，確認首次超限的解析度與網格收斂。報告命名為 Predicted Load at 60 MPa Stress Limit，附前後增量、RZ、kgf、位移、準則、平均法與誤差／未驗證事項。若全程未到 60 MPa，記為「已驗證行程內未達門檻」；若不收斂先停止，記為「未能判定」，不可把最後收斂點當作破裂點。",
+      "key_rules": "- 單位：在一致的 N–mm 單位制下，1 kgf = 9.80665 N；50 kgf = 490.3325 N ≈ 490 N，490 N / 9.80665 ≈ 49.966 kgf。kg 是質量，kgf 是力。這是單位換算，不是本案新量測反力。\n- 只讀同一增量：Stress_i ↔ UZ_i ↔ RZ_i；首次儲存超限幀不一定就是連續載入過程的精確門檻。先在位移／Time 軸夾住 i−1 與 i，不假設反力一定單調；插值只能是估計。\n- Time 是 NLSTAT 載入歷程參數；即使某線性 ramp 下位移比例可由 Time 推得，LGDISP、接觸或材料非線性也不保證反力同比例。Time = 0.917812 不能直接乘 490 N 推算 SPCD 反力。明確 FORCE 比例載入的外力倍率也不是 SPCD 反力倍率。\n- 拉力用同一物理方向的分量／投影；Magnitude 是向量長度，不能代替 Z 分量做帶符號力平衡。若 GRID CD 使用局部座標或載入方向轉動，先轉到共同座標再比較。\n- 準靜態整體平衡應包含全部外部約束反力、施加外力及其他外部作用；內部接觸力不可重複計入。無其他外力的簡單雙端 SPCD 模型可檢查 RZ_drive + RZ_support ≈ 0。勿將全部 SPC 節點相加的接近零結果當成拉力。",
+      "notes": "【應力顯示】59.948 MPa 的 Simple Average 顯示只表示該平均設定下接近 60 MPa，不能直接當首次超限，更不能稱裂紋。固定 Legend Max = 60 只會截斷色階，應改讀真正數值。Simple／Compute then average 與 Advanced／Average then compute 可能不同；保留原平均法作對照，並查看 Unaveraged 元素結果、Centroid／Corner 與輸出位置。沒有 Corner 輸出時不要宣稱已查 Corner 峰值。\n\n【網格與奇異點】Unaveraged 也不是自動正確答案；RBE、點拘束、接觸邊緣與尖角可能出現對網格敏感的尖峰。需記錄熱點位置、局部網格尺寸與元素階次，至少比較逐步細化後的門檻載荷、力–位移與熱點應力；若峰值持續升高不收斂，需檢查理想化／奇異性並建立有依據的評估區域，不可任意刪掉最大值。單節點 SPCFORCE 分配也受網格與元素種類影響，治具合力與整體平衡須一起檢查。\n\n【材料與結論】60 MPa 不是已確認的 NC50RT 裂紋強度。僅以彈性應力門檻定義的載荷稱 Stress-limit Load；實際 Crack Load、裂紋擴展、斷開或 Insert Pull-out 需要各自經實驗校準的模型與準則。求解不收斂不等於物理破裂。\n\n【使用與驗證範圍】本篇教學與四張步驟圖是公開 review／local 預覽內容，未寫入正式文章資料庫；圖內介面與流程均標示「示意圖」，不是 HyperView 截圖或本案求解證據。實際 SPCFORCE、力平衡、材料門檻與網格收斂仍待在原模型執行。\n\n【延伸閱讀】本頁下方「相關知識」可開啟 OCP Rail 完整建模／Force→SPCD 與 SPC 123456 排錯教學。",
+      "reference_source": "工程案例來源：2026-10-29 OCP Rail 對話與既有 review 分支。案例位移與 59.948 MPa 是既有對話轉述，未取得原始 .fem／.h3d 重新驗證。以下為 Altair 官方文件，查核日期 2026-10-29；選項與介面請以實際安裝版本核對。\nSPCFORCE（反力輸出與網格限制）：https://help.altair.com/hwsolvers/os/topics/solvers/os/spcforce_io_r.htm\nNLOUT（中間增量、FREQ／NINT、收斂輸出）：https://help.altair.com/hwsolvers/os/topics/solvers/os/nlout_bulk_r.htm\nNonlinear Static Analysis（LGDISP）：https://help.altair.com/hwsolvers/os/topics/solvers/os/analysis_nonlinear_quasi_static_c.htm\nHyperView Nodal Averaging：https://2025.help.altair.com/2025/hwdesktop/hwx/topics/panels/nodal_averaging_elemental_results_hv_r.htm\nHyperView Quick Query：https://www.2021.help.altair.com/2021/hwdesktop/hwx/topics/panels/context_menu_quick_query_hv_r.htm\nMAT1（允許應力／FoS）：https://2025.help.altair.com/2025.1/hwsolvers/altair_help/topics/solvers/os/mat1_bulk_r.htm",
+      "images": [],
+      "figures": [
+        {
+          "id": "ocp-spcforce-1",
+          "order": 1,
+          "section": "procedure",
+          "step": 2,
+          "title": "SPCFORCE 與 NLOUT 增量輸出",
+          "caption": "示意圖：Output Request 與 NLOUT 必須同時核對；範例 ID 需與模型一致。",
+          "src": "assets/figures/ocp-rail/07-spcforce-output.svg",
+          "mock": true,
+          "defaultVisible": true
+        },
+        {
+          "id": "ocp-spcforce-2",
+          "order": 2,
+          "section": "procedure",
+          "step": 5,
+          "title": "同一 Frame 查位移與反力",
+          "caption": "示意圖：鎖定相同 Subcase／Frame，於驅動 Node 讀 Global Z 分量。",
+          "src": "assets/figures/ocp-rail/08-spcforce-query.svg",
+          "mock": true,
+          "defaultVisible": true
+        },
+        {
+          "id": "ocp-spcforce-3",
+          "order": 3,
+          "section": "procedure",
+          "step": 6,
+          "title": "找首次儲存超限增量",
+          "caption": "示意圖：i−1 低於門檻、i 首次達到門檻，反力必須取自 i；無本案量測曲線。",
+          "src": "assets/figures/ocp-rail/09-stress-limit-increment.svg",
+          "mock": true,
+          "defaultVisible": true
+        },
+        {
+          "id": "ocp-spcforce-4",
+          "order": 4,
+          "section": "procedure",
+          "step": 7,
+          "title": "治具合力、平衡與 kgf 換算",
+          "caption": "示意圖：單點／多點先取帶符號合力；490.3325 N 僅為單位換算示例。",
+          "src": "assets/figures/ocp-rail/10-reaction-balance-kgf.svg",
+          "mock": true,
+          "defaultVisible": true
+        }
+      ],
+      "created_at": "2026-10-29T12:00:00+08:00",
+      "updated_at": "2026-10-29T12:00:00+08:00"
+    },
+    {
       "id": "ocp-rail-force-spcd-test-to-fail-20261029",
       "category": "optistruct",
       "content_type": "knowledge",
@@ -63,13 +143,15 @@
         "contact",
         "Tetra10",
         "test-to-fail",
-        "displacement-control"
+        "displacement-control",
+        "SPCFORCE",
+        "Force→SPCD"
       ],
       "summary": "【案例目的】以 OptiStruct 模擬 NC50RT 塑膠 OCP Rail 的 50 kgf（約 490 N）水平拉伸，並由 Force Control 轉為 Displacement Control，為後續 Test to Fail 建立方法。\n【已驗證成果】原始 Force Control 下，左孔 RBE3 中心 Node 26088 的 Global Z 位移為 −1.101 mm，並非全模型最小值 −1.379 mm。把 SPCD 設為 −1.101 mm，且把左孔 SPC 由 123456 改為只有 3 後，兩模型最大位移 Magnitude 分別約 2.948 與 2.947 mm（差約 0.034%），應力輪廓亦幾乎重合。\n【重要限制】尚未核實 SPCD 反力是否精確對應 490 N；目前可稱為載荷控制轉換驗證，不可稱為已預測破裂力。",
       "technical_explanation": "【模型／座標】Rail 長度方向為 Global Z。左孔承受 Z 向負力，右孔為固定端。獨立拉伸試驗只使用 Rail + 兩根 Pin；底部灰色 BKT 不存在於實驗的載荷路徑，因此正式代表實驗的模型不應為了符合他人結果而任意加 BKT。若做組裝狀態敏感度分析才考慮 BKT／Contact。\n\n【RBE2 vs RBE3】RBE2 將指定 Dependent Nodes 的運動綁定到 Independent Center，會增加孔壁附近的理想化剛性。RBE3 以周圍節點加權運動定義 Reference Node，適合簡化分配力，但不等於真實 Pin–Hole 單側接觸。對孔壁局部破壞應以 Pin + Contact 檢查。水平推力的 Node 選取以 Hole 內壁沿深度的表面 Nodes 為原則，不是只選孔口上緣，也不需選實心體積內部 Nodes。選受力側或整圈須依物理接觸與簡化假設決定。\n\n【原本的連接】左孔 RBE3（參考 Node 26088）施加 FZ=−490 N，右孔 RBE2（參考 Node 26087）SPC 123456。一般一階 Solid 的孔壁節點只有 123 平移自由度；曾出現 Auto-SPC 192 個自由度（64×456），來自右孔 RBE2 中無實際轉動剛度的 Solid 節點。這是對無效轉動 DOF 的自動處理，不表示 192 個平移方向被額外固定；有 Shell/Beam 混接時不得套用同樣結論。\n\n【Tetra4 vs Tetra10】Tetra4 在彎曲／孔邊強梯度情況可能偏硬，Tetra10 通常有更佳應力解析能力；但二階 Contact 的面離散、Mid-side Node 及非線性收斂路徑可能改變結果，不能只因二階 Stress 更大就宣稱更真實。必須做孔邊局部網格收斂、RBE/Contact Surface 節點更新檢查，以及元素應力 Unaveraged 比較。\n\n【Nut–Rail 界面】本案金屬 Nut／Insert 是塑膠成型後壓入（Press Fit），不是射出包覆或膠合。TIE 可作為簡化對照，但真實界面可能透過干涉預壓、摩擦與幾何卡合傳力；較完整版本為 Frictional Contact + 合理 Interference／壓入後殘留接觸狀態。單純改成無干涉 Contact 可能因缺乏法向壓力而過度滑動。應確認 Nut 相對位移、Contact Pressure、開離及塑性應變。",
       "procedure": "1. 另存原始 Force Control 模型；保留 NLSTAT、LGDISP、材料、Nut–Rail Contact、Mesh、左孔 RBE3、右孔 RBE2 + SPC。\n2. 對 490 N 求解的最後已收斂 Frame，在 HyperView 的 Contour 選 Displacement (Z) → Apply；再開 Measure，選 Nodal Contour → Nodes，Visibility Filter 設 All，輸入 RBE3 Reference Node 26088，讀取 UZ。這次讀到 −1.101 mm；不能拿全模型 Min −1.379 mm 當 Reference 位移。\n3. 複製成 Displacement Control 版本，移除左孔原先的 FORCE −490 N；保留左側 RBE3，不需要為了 SPCD 改用 RBE2（LGDISP 下仍需檢查 Solver 的相依自由度處理）。\n4. 在 SPC Collector 中，右孔中心維持 SPC 123456，左孔 Node 26088 只宣告 SPC 3=0；不要使用 123 或 123456，否則會額外鎖定 X、Y、旋轉 DOF，導致兩個模型邊界不一致。\n5. 在另一個 Collector 建立 SPCD：Node=26088、DOF3（Global Z）、value=−1.101 mm。Load Step 設 SPC 指向 SPC Collector，LOAD 指向 SPCD Collector；保留 NLSTAT、LGDISP、NLPARM、NLOUT。\n6. 執行後先比對兩版的 Node 26088 UZ、全模型 Displacement (Magnitude)、最大值位置與 Contact 狀態；本次結果 2.948（SPCD）vs 2.947 mm（Force），兩者最大位移皆 Grid 1345。\n7. 在輸出中加入 SPCFORCE，查左側施加位移的反力與右端總反力，確認力平衡與其大小是否接近 490 N；再比較同一應力平均法、同一結果 Frame 的 Von Mises。務必取消原本固定在 60 MPa 的截斷色階後讀真實 Peak Stress。\n8. 完成等效驗證後，再增加 SPCD 負位移（例如以 490 N 時的位移作第一個基準），在多增量中記錄 Reaction Force–Displacement、Plastic Strain、Contact Status。不要把 Solver 不收斂或首次超過 60 MPa 當作斷裂判據。",
       "key_rules": "- 50 kgf 是重力單位；若用 N–mm，50 kgf ≈ 490.3 N；此案例模型輸入約 −490 N，Global Z。\n- SPCD 只控制指定 Reference Node 的對應 DOF；整體 Min UZ、最大位移 Magnitude、其他 GRID 的位移不必等於 SPCD 值。\n- SPCD DOF 3 需在作用的 SPC 選集中宣告，其他 DOF 只在真實治具有拘束時才加入；同一自由度不可同時沿用原 FORCE。\n- 核對等效時要比較相同的實體位置及 Component，並檢查 SPCFORCE、反力平衡、接觸狀態與塑性歷程；只看顏色或全模型極值不足以判定。\n- 兩張 Stress 圖的 Legend Max=60 MPa 是顯示色階上限，不代表真實最大應力就是 60 MPa；Reference Node 若不屬 Solid Stress 評估點，量測 Stress 會顯示 N/A。\n- 正式 Test to Fail 可採位移控制，但若模型只有彈塑性、不含經驗證的損傷／斷裂準則，就不能直接預測塑膠裂斷；Insert Pull-out 與塑膠破裂是不同失效模式。\n- 本知識中的節點 ID（26088、26087）、位移（−1.101 mm）為此案例值，勿複製到其他 Geometry、網格版本後直接套用。",
-      "notes": "【失敗排查紀錄】(a) 把全模型最小 UZ −1.379 mm 當作左孔施力中心行程，SPCD 版本比 Force 版本多拉約 0.278 mm。（b）改回 −1.101 mm 後兩版仍不同，查得 SPCD 左孔誤設為 SPC 123456；修正為只 SPC 3，位移與 Stress 趨於一致。（c）開 Vector Plot 查單點時畫面滿是向量，改以 Contour + Measure → Nodal Contour 並將 Visibility Filter 改 All。（d）Auto-SPC 192 來自 Solid 孔壁 RBE2 的轉動自由度，不是額外固定平移。\n\n【未完成】仍需確認 SPCD = −1.101 mm 的 SPCFORCE 反力是否約為 490 N；需確認試驗治具中的 Pin 旋轉與 X/Y 滑移自由度；Press Fit 干涉量、摩擦係數及材料失效模型仍待實驗數據；需要 Pin + Contact 版本和 Tetra10 網格收斂。\n\n【圖片說明】附圖為根據本次對話與所見截圖重繪的工程說明圖，不是從原始 H3D 擷取的截圖或新一輪計算結果。",
+      "notes": "【失敗排查紀錄】(a) 把全模型最小 UZ −1.379 mm 當作左孔施力中心行程，SPCD 版本比 Force 版本多拉約 0.278 mm。（b）改回 −1.101 mm 後兩版仍不同，查得 SPCD 左孔誤設為 SPC 123456；修正為只 SPC 3，位移與 Stress 趨於一致。（c）開 Vector Plot 查單點時畫面滿是向量，改以 Contour + Measure → Nodal Contour 並將 Visibility Filter 改 All。（d）Auto-SPC 192 來自 Solid 孔壁 RBE2 的轉動自由度，不是額外固定平移。\n\n【未完成】仍需確認 SPCD = −1.101 mm 的 SPCFORCE 反力是否約為 490 N；需確認試驗治具中的 Pin 旋轉與 X/Y 滑移自由度；Press Fit 干涉量、摩擦係數及材料失效模型仍待實驗數據；需要 Pin + Contact 版本和 Tetra10 網格收斂。\n\n【圖片說明】附圖為根據本次對話與所見截圖重繪的工程說明圖，不是從原始 H3D 擷取的截圖或新一輪計算結果。\n\n【反力驗證下一步】請開啟下方「相關知識」的「SPCFORCE 反力教學｜OCP Rail 的 Force→SPCD 等效驗證與 60 MPa Stress-limit Load」獨立教學：設定 SPCFORCE(H3D) = ALL 與 NLOUT，在相同增量核對約 490 N，再找 60 MPa Stress-limit Load。實際反力仍待驗證，Time 不能當作 SPCD 反力比例。",
       "reference_source": "使用者提供的 OCP Rail OptiStruct 工程模型、HyperView 2026 截圖與 2026-10-28～29 對話紀錄。補充參考：Altair OptiStruct 使用手冊（SPC/SPCD、RBE2/RBE3、NLSTAT、Contact、SPCFORCE）。工程示意圖均重新繪製；數值以截圖所見為準，未經獨立求解重算。",
       "images": [
         {
@@ -208,7 +290,7 @@
         }
       ],
       "created_at": "2026-10-29T09:00:00+08:00",
-      "updated_at": "2026-10-29T09:00:00+08:00"
+      "updated_at": "2026-10-29T12:00:00+08:00"
     },
     {
       "id": "ocp-rail-spcd-123456-mismatch-20261029",
@@ -223,7 +305,9 @@
         "RBE3",
         "boundary-condition",
         "displacement-control",
-        "debug"
+        "debug",
+        "SPCFORCE",
+        "Force→SPCD"
       ],
       "symptom": "同一 OCP Rail 用 Force −490 N 或 SPCD −1.101 mm，左孔 Reference Node 26088 的 UZ 都是 −1.101 mm，但全模型最小 UZ、Stress Contour 差異明顯。最初 SPCD −1.379 mm 時又出現更大差異。",
       "root_cause": "(1) 用整個模型最小 UZ −1.379 mm 取代 Reference Node 位移 −1.101 mm，行程多了 0.278 mm；(2) 左孔 RBE3 Reference Node 26088 在 SPCD 版被設為 SPC 123456，額外限制 1、2、4、5、6 DOF。原 Force 版左孔為自由加力端；拘束條件不同導致孔壁變形／接觸／應力不同。",
@@ -234,7 +318,7 @@
         "用 Vector Plot 顯示整組位移向量查單點，畫面混亂；改使用 Nodal Contour Measure。"
       ],
       "verification": "修改後左側 SPCD 版最大位移 Magnitude = 2.948 mm；右側 490 N Force 版 = 2.947 mm，相差約 0.034%，最大值皆為 Grid 1345，兩張 Von Mises Contour 外觀近乎相同。因兩圖 Stress Legend 上限 60 MPa，尚未確認未截斷的最大應力；SPCFORCE 反力仍待核對。",
-      "notes": "這是 BC 排查案例，不代表正式失效預測完成。SPC 456 何時有物理必要，應依實際試驗 Pin 治具約束決定。",
+      "notes": "這是 BC 排查案例，不代表正式失效預測完成。SPC 456 何時有物理必要，應依實際試驗 Pin 治具約束決定。\n\n【反力驗證下一步】請開啟下方「相關知識」的「SPCFORCE 反力教學｜OCP Rail 的 Force→SPCD 等效驗證與 60 MPa Stress-limit Load」獨立教學：設定 SPCFORCE(H3D) = ALL 與 NLOUT，在相同增量核對約 490 N，再找 60 MPa Stress-limit Load。實際反力仍待驗證，Time 不能當作 SPCD 反力比例。",
       "reference_source": "2026-10-29 OCP Rail Force／SPCD 對照與 HyperView 截圖（工程對話）。",
       "images": [
         {
@@ -285,7 +369,7 @@
         }
       ],
       "created_at": "2026-10-29T09:00:00+08:00",
-      "updated_at": "2026-10-29T09:00:00+08:00"
+      "updated_at": "2026-10-29T12:00:00+08:00"
     },
     {
       "id": "demo-os-rbm",
