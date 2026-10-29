@@ -7,11 +7,12 @@
   "scripts": {
     "start": "node scripts/serve.mjs",
     "seed:build": "node scripts/build-seed.mjs",
-    "test": "node --test tests/content-types.test.mjs tests/ocp-rail.test.mjs",
+    "test": "node --test tests/content-types.test.mjs tests/ocp-rail.test.mjs tests/adaptive-time.test.mjs",
     "test:browser": "node tests/browser-content-types.mjs",
     "test:ocp-browser": "node tests/browser-ocp-rail.mjs",
     "test:navigation": "node tests/browser-navigation.mjs",
-    "test:spcforce": "node tests/browser-spcforce.mjs"
+    "test:spcforce": "node tests/browser-spcforce.mjs",
+    "test:adaptive": "node tests/browser-adaptive-time.mjs"
   },
   "engines": {
     "node": ">=18"

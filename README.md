@@ -138,6 +138,7 @@ npm run test:navigation
 npm run test:browser
 npm run test:ocp-browser
 npm run test:spcforce
+npm run test:adaptive
 ```
 
 `test:browser` 需要 Playwright 與 Chrome。可用 `BROWSER_CHANNEL` 換瀏覽器。若 Playwright 不在預設路徑，把 `PLAYWRIGHT_MODULE` 指到它的 package 目錄。`REVIEW_DIR` 是截圖與報告目錄，預設 `.local-review/`，不要 commit。
@@ -149,6 +150,8 @@ npm run test:spcforce
 瀏覽器測試用本機資料，並攔截 Supabase 請求。它不會對任何 Supabase 專案寫入。
 
 ## 部署
+
+新增待審文章：[OptiStruct NLSTAT – Two-Stage Adaptive Time Increment Control](docs/knowledge/optistruct-nlstat-two-stage-adaptive-time-increment-control.md)。分類為 OptiStruct，主題標籤為 Nonlinear Analysis；在獨立 review／preview checkout 以 `?source=local#optistruct-nlstat-two-stage-adaptive-time-increment-control-20261029` 檢視。候選設定尚未 Solver 驗證，官方查核與測試範圍見[審核記錄](docs/review/two-stage-adaptive-20261029.md)。OCP 教學中的案例節點編號與讀值已改為通用方法描述。
 
 GitHub Pages 從 `main` 的根目錄部署到：
 

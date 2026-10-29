@@ -11,7 +11,7 @@
 | `analysis_type` | 比對 NLSTAT / Linear / Explicit | `NLSTAT + LGDISP` |
 | `unit_system` | 避免 50 kgf 與 490 N、N-mm-t 單位誤用 | `N-mm-MPa` |
 | `model_revision` | 對應 FEM、H3D、Contact 版本 | `Current / Current_Contact_2nd` |
-| `verification_metrics` | 保留可機讀數據與方法，不只是文字 | `[{metric:'max_displacement',force:2.947,spcd:2.948,unit:'mm'}]` |
+| `verification_metrics` | 保留可機讀數據與方法，不只是文字 | `[{metric:control_displacement,value:measured_value,unit:mm}]` |
 
 ## 優先級 P1：可先放在現有 Notes 欄位，無須立刻修改 DB
 
