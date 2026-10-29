@@ -5,6 +5,27 @@ import vm from 'node:vm';
 const source = file => fs.readFileSync(new URL('../' + file, import.meta.url), 'utf8');
 const db = JSON.parse(source('data/knowledge-base.json'));
 const knowledge = { content_type:'knowledge', title:'Rigid Wall', category:'lsdyna', summary:'摘要', technical_explanation:'法向有效側' };
+
+test('SPCFORCE is independently searchable, cross-linked and has valid step figures',()=>{
+ const run=app();const id='ocp-rail-spcforce-stress-limit-20261029';
+ const e=db.entries.find(e=>e.id===id);assert.ok(e);assert.equal(e.content_type,'knowledge');
+ assert.equal(new Set(db.entries.map(e=>e.id)).size,db.entries.length,'unique article IDs');
+ run(`S.entries=${JSON.stringify(db.entries)};S.filter='all'`);
+ for(const q of ['SPCFORCE','反力','60MPa','NLOUT','50kgf','Force→SPCD']){
+  run(`S.q=${JSON.stringify(q)}`);assert.ok(run('visible().some(e=>e.id==='+JSON.stringify(id)+')'),q);
+ }
+ for(const relatedId of ['ocp-rail-force-spcd-test-to-fail-20261029','ocp-rail-spcd-123456-mismatch-20261029']){
+  const related=db.entries.find(e=>e.id===relatedId);
+  run('globalThis.related='+JSON.stringify(related));
+  assert.ok(run('cSectionsHtml(cArticleSections(related,cFigs(related)))').includes('href="#'+id+'"'),'explicit incoming article link');
+  run('globalThis.subject='+JSON.stringify(e));
+  assert.ok(run('cSectionsHtml(cArticleSections(subject,cFigs(subject)))').includes('href="#'+relatedId+'"'),'explicit outgoing article link');
+ }
+ const steps=e.procedure.split('\n').map(s=>Number(s.match(/^(\d+)\./)?.[1]));
+ assert.equal(e.figures.length,4);
+ for(const f of e.figures){assert.ok(steps.includes(f.step));assert.equal(f.section,'procedure');assert.equal(f.mock,true);assert.match(source(f.src),/示意圖/);}
+ run(`globalThis.e=${JSON.stringify(e)}`);assert.equal(run(`cSectionsHtml(cArticleSections(e,cFigs(e))).match(/id="fig-/g).length`),4);
+});
 function app(fetch = async () => { throw new Error('Unexpected network'); }, opts = {}) {
   const stored = opts.signedIn === false ? 'null' : JSON.stringify({access_token:'test',refresh_token:'test',expires_at:9999999999,user:{id:'11111111-1111-4111-8111-111111111111',email:'test@example.invalid'}});
   const ctx = vm.createContext({ navigator:{platform:'test'}, document:{addEventListener(){}}, URL, URLSearchParams, location:{search:''}, console, fetch, Response, crypto, localStorage:{getItem:() => stored} });
@@ -26,7 +47,7 @@ test('renderer hides inactive and empty optional sections, retains image-only se
  assert.equal(run(`cSectionsHtml(cArticleSections(e,cFigs(e))).includes('問題現象')`),false);
 });
 test('all existing entries and legacy placements render without dropping figures',()=>{
- const run=app(); for(const e of db.entries){ run(`globalThis.e=${JSON.stringify(e)}`); assert.equal(run('KBContent.type(e)'),'troubleshooting'); assert.equal(run(`cSectionsHtml(cArticleSections(e,cFigs(e))).match(/id="fig-/g)?.length||0`),(e.figures||e.images).length); }
+ const run=app(); for(const e of db.entries){ run(`globalThis.e=${JSON.stringify(e)}`); assert.equal(run('KBContent.type(e)'),e.content_type === 'knowledge' ? 'knowledge' : 'troubleshooting'); assert.equal(run(`cSectionsHtml(cArticleSections(e,cFigs(e))).match(/id="fig-/g)?.length||0`),(e.figures||e.images).length); }
  assert.equal(run(`cFigs({images:[{section:'solution',step:'v'}]})[0].sec`),'verification');
 });
 test('search indexes all requested fields',()=>{
@@ -50,12 +71,12 @@ test('Supabase load/create/update use new columns, normalize newlines, exclude a
  assert.equal(run('p.canDelete("seed-row")'),true);
 });
 test('pre-migration load falls back to legacy columns and writes fail explicitly',async()=>{
- const req=[];const run=app(async(url,init)=>{req.push(url);if(url.includes('software_categories'))return Response.json(db.categories);if(url.includes('content_type')||init.method!=='GET')return Response.json({code:'42703'},{status:400});return Response.json([db.entries[0]]);});
+ const req=[];const legacy=db.entries.find(e=>!e.content_type);const run=app(async(url,init)=>{req.push(url);if(url.includes('software_categories'))return Response.json(db.categories);if(url.includes('content_type')||init.method!=='GET')return Response.json({code:'42703'},{status:400});return Response.json([legacy]);});
  run(`globalThis.p=createSupabaseProvider({url:'https://abcdefghijklmnopqrst.supabase.co',publishableKey:'sb_publishable_test'})`);
  assert.equal((await run('p.load()')).entries[0].content_type,'troubleshooting');assert.equal(req.length,3);await assert.rejects(run(`p.createEntry(${JSON.stringify(knowledge)})`),/phase5-content-types.sql/);
 });
 test('local provider normalizes legacy type and preserves default figures',async()=>{
- const run=app(async()=>Response.json(db));const result=await run('LocalProvider.load()');assert.equal(result.entries[0].content_type,'troubleshooting');assert.equal(result.entries.find(e=>e.id==='demo-hm-step').figures.length,8);
+ const run=app(async()=>Response.json(db));const result=await run('LocalProvider.load()');for(const e of db.entries)assert.equal(result.entries.find(x=>x.id===e.id).content_type,e.content_type==='knowledge'?'knowledge':'troubleshooting');assert.equal(result.entries.find(e=>e.id==='demo-hm-step').figures.length,8);
 });
 test('migration is additive and extends only phase4 content update grants',()=>{
  const sql=source('supabase/phase5-content-types.sql').replace(/--[^\n]*/g,'');assert.doesNotMatch(sql,/\b(drop|delete|truncate|rename)\b|\bupdate\s+public\./i);assert.equal((sql.match(/add column if not exists/g)||[]).length,6);assert.match(sql,/grant insert \(content_type, summary, technical_explanation, procedure, key_rules, verification\)/);assert.match(sql,/grant update \(content_type, summary, technical_explanation, procedure, key_rules, verification\)/);
