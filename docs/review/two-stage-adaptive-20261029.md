@@ -53,3 +53,19 @@
 ## 發布方式
 
 保持 Draft PR，讓使用者先審閱方法、候選值與圖解。Preview 指向同一候選提交；正式網站與正式 Supabase 文章庫均不在本次修改範圍。現有 seed 產生器尚未完整處理 knowledge 欄位，本次不以 seed 匯入。
+
+
+## 本次修訂：Time 0.75 後結果停滯
+
+更新原有文章 ID，未增加知識條目；總數仍為 22。原 18 步與 5 圖保留，補成 30 步與 7 圖。既有 OCP 通用教學仍不放特定模型資料；僅本篇依使用者本次明確要求新增 Node 26088／26087、-0.82575／-1.101 mm 的故障排查示例。這些為使用者指定候選資料，不是求解結果。
+
+- A／B：使用者回報平台與高度懷疑根因分開標示；無本案 deck、H3D 或求解紀錄，未重現根因。
+- C／D：保留原明定總時間曲線候選 A，另補直接 LOAD 分段 SPCD 候選 B；不疊加、不假定數值 D 是續接絕對目標，不盲填剩餘行程為增量。加入 HyperMesh Collector／SID／Subcase 逐項核對。
+- E／F：HyperView UZ 三點、第二段起點連續與更負的位移歷程，同步 Stress／SPCFORCE／Contact；另列 .out／.monitor 的 CONVERGED、SUBCASE TIME、CURRENT TIME、LOAD FACTOR。MONITOR DISP 不直接視為指定點 UZ。
+- G：新增正確目標與錯誤平台 2 張原創 SVG，均為示意，非實測。
+
+官方 2026 再查核：NLPARM Comment 5 明文定義局部 TTERM；CNTNLSUB YES／Comments 6–7 說明續接、卸載、保持邊界；SPCD D 欄及 Comments 1、4–5 說明指定運動與 SPC／LOAD 限制。**所查參考頁未明文給出續接數值 SPCD 的絕對／增量解讀；此項保持待驗證，未從 SPC 教學推導成 SPCD 的已證實規則。** .monitor 官方頁明確區分 SUBCASE TIME 與 CURRENT TIME；新增該頁與 Runtime Monitoring 來源。候選步長控制原值保留，不保證實際步數、效能或門檻精度。
+
+待完成工程驗證：安裝版 HyperMesh 2026 操作、最小模型的數值 SPCD 續接解讀、真實三點 UZ 與無跳變、本案平台根因、Contact 及 60 MPa 對應反力、單段全細步比較、增量敏感度與網格收斂。網站測試不能替代這些項目。
+
+本次網站驗證：npm test 33/33 通過；test:adaptive 六組搜尋、互連／返回、直接連結與重載、30 步／7 圖位置與放大、375／812／1440 寬度、7 張 SVG 文字邊界、無瀏覽器錯誤及無正式資料庫請求均通過。兩張新圖經瀏覽器渲染與目視檢查。保持 Draft PR、不 merge、不移動 main，不寫正式 Supabase。
